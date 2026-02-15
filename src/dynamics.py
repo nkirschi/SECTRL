@@ -4,7 +4,7 @@ from common import SystemConfig
 
 class ContinuousLQREnv:
     """
-    Environment simulating continuous-time linear-quadratic dynamics:
+    Environment simulating continuous-time stochastic linear dynamics:
     x' = (Ax + Bu) dt + Σ dw
 
     The simulation method is Euler–Maruyama like in Basei et al.

@@ -7,8 +7,9 @@ A newly born repo
 ```
 .
 ├── notebooks
-│   └── playground.ipynb
+│   └── regret.ipynb
 ├── src
+│   ├── algorithm.py
 │   ├── common.py
 │   ├── dynamics.py
 │   ├── estimator.py

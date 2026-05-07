@@ -18,6 +18,7 @@ from agent import (
     SparseExcitationAgent,
 )
 from diagnostics import collect_diagnostics, episode_cost
+from tqdm import tqdm
 
 
 AGENT_NAMES = ["oracle", "dense_greedy", "sparse_greedy", "sparse_excitation"]
@@ -192,10 +193,7 @@ def run_paired_experiment(exp_config, seed, verbose=False):
         supports=supports,
         episodes={name: [] for name in AGENT_NAMES},
     )
-    for m in range(M):
-        if verbose and (m == 0 or (m + 1) % 5 == 0 or m == M - 1):
-            print(f"  Seed {seed}, episode {m + 1}/{M}")
-
+    for m in tqdm(range(M), disable=not verbose):
         x0 = init_rng.randn(d) * 1.0  # TODO: is this the best x0 approach?
 
         for name in AGENT_NAMES:

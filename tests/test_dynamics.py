@@ -7,7 +7,7 @@ from dynamics import ContinuousLQREnv
 
 @pytest.fixture
 def config():
-    return SystemConfig(x_dim=2, u_dim=1, dt=0.01)
+    return SystemConfig(x_dim=2, u_dim=1, dt=0.01, T=10)
 
 
 @pytest.mark.quick
@@ -69,7 +69,7 @@ def test_stochastic_scaling(config):
 
     # Theoretical Variance of dx is Σ * Σ^T * dt = I * 0.01
     sample_var = np.var(dx_samples, axis=0)
-    expected_var = config.dt_sim
+    expected_var = config.dt
     np.testing.assert_allclose(sample_var, expected_var, rtol=0.05)
 
     sample_mean = np.mean(dx_samples, axis=0)

@@ -298,7 +298,7 @@ def collect_diagnostics(
     # Spectral abscissa
     B_for_gain = agent.B_est
     spec = closed_loop_spectral_abscissa(A_true, B_true, agent.dre, B_for_gain)
-    d["spectral_abscissa_t0"] = spec.get("t=0.00", np.nan)
+    d["spectral_abscissa_t0"] = spec.get("t=0", np.nan)
     d["spectral_abscissa_tT"] = list(spec.values())[-1]
 
     return d

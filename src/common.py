@@ -82,4 +82,4 @@ class ExperimentConfig:
             log_term = np.log((d + p) * M * d / self.delta)
             return self.c_lambda * self.sigma_bar * np.sqrt(log_term / N)
 
-        return [get_lambda(m).item() for m in range(1, self.max_episodes)]
+        return [get_lambda(m * self.H).item() for m in range(1, self.max_episodes)]

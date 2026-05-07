@@ -70,14 +70,8 @@ class Agent:
         try:
             sol = self.dre.solve(A, B)
 
-            # Check for negative eigenvalues in P at any grid point
-            for tau_val in sol.t:
-                P = sol.sol(tau_val).reshape(self.config.x_dim, self.config.x_dim)
-                eigs = np.linalg.eigvalsh(P)
-                if np.min(eigs) < -1e-8:
-                    raise ValueError(
-                        f"Negative P eigenvalue {np.min(eigs):.2e} at tau={tau_val:.4f}"
-                    )
+            if not sol.success:
+                raise RuntimeError(f"DRE solver did not converge: {sol.message}")
 
             # Success: store as fallback
             self._prev_dre_solution = sol

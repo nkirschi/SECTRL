@@ -164,15 +164,9 @@ def run_paired_experiment(exp_config, seed, verbose=False):
     shared_noise = noise_rng.randn(M, H, d)
 
     # deterministic RNG for the pure exploration phase
+    m_explore = int(np.ceil(2 * (d + p) / H))
     explore_rng = np.random.RandomState(seed + 3_000_000)
-
-    # deterministic RNG for the initial state
-    init_rng = np.random.RandomState(seed + 4_000_000)
-
-    # NEW: Calculate required exploration episodes to ensure a full-rank design matrix.
-    # We use a safety factor of 2 to ensure the data is well-conditioned, not just barely invertible.
-    required_samples = 2 * (d + p)
-    m_explore = int(np.ceil(required_samples / H))
+    shared_exploration = explore_rng.randn(m_explore, H, p) * exp_config.sigma
 
     # Create agents
     agents = _create_agents(exp_config, sys_config, Q, R, A_star, B_star, seed)
@@ -194,7 +188,7 @@ def run_paired_experiment(exp_config, seed, verbose=False):
         episodes={name: [] for name in AGENT_NAMES},
     )
     for m in tqdm(range(M), disable=not verbose):
-        x0 = init_rng.randn(d) * 1.0  # TODO: is this the best x0 approach?
+        x0 = sigma * np.ones(d)  # TODO: is this the best x0 approach?
 
         for name in AGENT_NAMES:
             agent = agents[name]
@@ -213,7 +207,7 @@ def run_paired_experiment(exp_config, seed, verbose=False):
 
                 if name != "oracle" and m < m_explore:
                     # Inject random Gaussian noise matching the state variance
-                    u = explore_rng.randn(p) * exp_config.sigma
+                    u = shared_exploration[m, k] * exp_config.sigma
                 else:
                     u = agent.get_control(t, x)
 

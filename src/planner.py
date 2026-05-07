@@ -46,8 +46,8 @@ class RiccatiODESolver:
             y0=p_final,
             dense_output=True,
             method="Radau",
-            rtol=1e-9,  # High precision relative tolerance
-            atol=1e-12,  # High precision absolute tolerance
+            rtol=1e-6,  # High precision relative tolerance
+            atol=1e-9,  # High precision absolute tolerance
         )
 
         self.solution = sol

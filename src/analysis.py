@@ -499,3 +499,190 @@ def plot_basin_entry_comparison(results, exp_config, save_path=None):
         plt.savefig(save_path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return fig
+
+
+def _build_true_support_mask(d, p, true_supports, block):
+    """Return boolean mask (d, d) for A or (d, p) for B true nonzeros."""
+    if block == "A":
+        mask = np.zeros((d, d), dtype=bool)
+        for i, supp in enumerate(true_supports):
+            for j in supp:
+                if j < d:
+                    mask[i, j] = True
+    else:  # B
+        mask = np.zeros((d, p), dtype=bool)
+        for i, supp in enumerate(true_supports):
+            for j in supp:
+                if j >= d:
+                    mask[i, j - d] = True
+    return mask
+
+
+def _draw_support_overlay(ax, mask):
+    """Draw thin black rectangles around each True cell in mask."""
+    import matplotlib.patches as mpatches
+
+    rows, cols = np.where(mask)
+    for r, c in zip(rows, cols):
+        rect = mpatches.Rectangle(
+            (c - 0.5, r - 0.5),
+            1,
+            1,
+            linewidth=1.2,
+            edgecolor="black",
+            facecolor="none",
+        )
+        ax.add_patch(rect)
+
+
+def plot_sparsity_evolution(results, exp_config, output_dir):
+    """
+    For each seed, save two heatmap figures (A block and B block) showing
+    how the estimated sparsity pattern evolves over checkpoint episodes.
+
+    Layout: 3 rows (dense_greedy, sparse_greedy, sparse_excitation),
+    first column = true matrix, remaining columns = estimates at
+    evenly-spaced checkpoint episodes.
+
+    Colormap: diverging grey (black = large negative, mid-grey = zero,
+    white = large positive), symmetric scale from true matrix.
+
+    True nonzero cells are outlined with a thin black rectangle.
+
+    Files saved as:
+        {output_dir}/sparsity_A_seed{seed}.png
+        {output_dir}/sparsity_B_seed{seed}.png
+    """
+    import matplotlib.pyplot as plt
+    import os
+
+    import warnings
+
+    try:
+        import matplotlib
+
+        matplotlib.use("Agg")
+    except Exception:
+        pass
+
+    LEARNING_AGENTS = ["dense_greedy", "sparse_greedy", "sparse_excitation"]
+    AGENT_LABELS = {
+        "dense_greedy": "Dense-Greedy",
+        "sparse_greedy": "Sparse-Greedy",
+        "sparse_excitation": "Sparse-Excitation",
+    }
+
+    d = exp_config.x_dim
+    p = exp_config.u_dim
+    M = exp_config.max_episodes
+
+    # Checkpoint episode indices (same logic as runner)
+    n_checkpoints = min(8, M)
+    checkpoint_episodes = sorted(
+        set(np.round(np.linspace(0, M - 1, n_checkpoints)).astype(int).tolist())
+    )
+
+    for result in results:
+        seed = result.seed
+        A_true = result.A_star
+        B_true = result.B_star
+        supports = result.supports
+
+        # Shared colour scale: symmetric about 0, derived from true matrices
+        Theta_true = np.hstack([A_true, B_true])
+        vmax = float(np.max(np.abs(Theta_true)))
+        if vmax < 1e-10:
+            vmax = 1.0
+
+        # True support masks for overlay
+        mask_A = _build_true_support_mask(d, p, supports, "A")
+        mask_B = _build_true_support_mask(d, p, supports, "B")
+
+        for block, true_mat, mask, ncols_matrix in [
+            ("A", A_true, mask_A, d),
+            ("B", B_true, mask_B, p),
+        ]:
+            n_cols = 1 + len(checkpoint_episodes)  # true + checkpoints
+            n_rows = len(LEARNING_AGENTS)
+
+            # Scale figure so each cell is roughly 0.35 inches square
+            cell_size = 0.35
+            fig_w = n_cols * ncols_matrix * cell_size + n_cols * 0.15 + 1.5
+            fig_h = n_rows * d * cell_size + n_rows * 0.15 + 1.0
+            # Cap to reasonable size
+            fig_w = min(fig_w, 28.0)
+            fig_h = min(fig_h, 20.0)
+
+            fig, axes = plt.subplots(
+                n_rows,
+                n_cols,
+                figsize=(fig_w, fig_h),
+                squeeze=False,
+                constrained_layout=True,
+            )
+
+            # Column titles
+            col_titles = ["True"] + [f"Ep. {m + 1}" for m in checkpoint_episodes]
+
+            imshow_kwargs = dict(
+                vmin=-vmax,
+                vmax=vmax,
+                cmap="RdBu_r",
+                aspect="auto",
+                interpolation="nearest",
+            )
+
+            for row_idx, agent_name in enumerate(LEARNING_AGENTS):
+                for col_idx in range(n_cols):
+                    ax = axes[row_idx, col_idx]
+
+                    if col_idx == 0:
+                        # True matrix
+                        mat = true_mat
+                    else:
+                        ep_idx = checkpoint_episodes[col_idx - 1]
+                        ep = result.episodes[agent_name][ep_idx]
+                        mat = ep.diagnostics.get(f"{block}_est", None)
+                        if mat is None:
+                            # Snapshot not available: show blank
+                            ax.set_visible(False)
+                            continue
+
+                    ax.imshow(mat, **imshow_kwargs)
+                    _draw_support_overlay(ax, mask)
+
+                    # Axis formatting
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    ax.spines[:].set_visible(False)
+
+                    if row_idx == 0:
+                        ax.set_title(col_titles[col_idx], fontsize=8, pad=3)
+                    if col_idx == 0:
+                        ax.set_ylabel(
+                            AGENT_LABELS[agent_name],
+                            fontsize=8,
+                            rotation=90,
+                            labelpad=4,
+                        )
+
+            # Colourbar on the right
+            sm = plt.cm.ScalarMappable(
+                cmap="RdBu_r",
+                norm=plt.Normalize(vmin=-vmax, vmax=vmax),
+            )
+            sm.set_array([])
+            cbar = fig.colorbar(sm, ax=axes[:, -1], shrink=0.6, pad=0.02, aspect=20)
+            cbar.ax.tick_params(labelsize=7)
+            cbar.set_label("Coefficient value", fontsize=7)
+
+            fig.suptitle(
+                f"{block} block — seed {seed} — "
+                f"d={d}, p={p}, s={exp_config.sparsity}, "
+                f"M={M}",
+                fontsize=9,
+                y=1.01,
+            )
+            save_path = os.path.join(output_dir, f"sparsity_{block}_seed{seed}.png")
+            fig.savefig(save_path, dpi=120, bbox_inches="tight")
+            plt.close(fig)

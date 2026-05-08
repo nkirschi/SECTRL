@@ -166,7 +166,14 @@ def run_paired_experiment(exp_config, seed, verbose=False):
     # deterministic RNG for the pure exploration phase
     m_explore = int(np.ceil(2 * (d + p) / H))
     explore_rng = np.random.RandomState(seed + 3_000_000)
-    shared_exploration = explore_rng.randn(m_explore, H, p) * exp_config.sigma
+    shared_exploration = explore_rng.randn(m_explore, H, p) * sigma
+
+    n_checkpoints = min(8, M)
+    checkpoint_set = set(
+        np.round(np.linspace(0, M - 1, n_checkpoints)).astype(int).tolist()
+    )
+
+    x0 = sigma * np.ones(d)  # TODO: is this the best x0 approach?
 
     # Create agents
     agents = _create_agents(exp_config, sys_config, Q, R, A_star, B_star, seed)
@@ -188,8 +195,6 @@ def run_paired_experiment(exp_config, seed, verbose=False):
         episodes={name: [] for name in AGENT_NAMES},
     )
     for m in tqdm(range(M), disable=not verbose):
-        x0 = sigma * np.ones(d)  # TODO: is this the best x0 approach?
-
         for name in AGENT_NAMES:
             agent = agents[name]
             env = ContinuousLQREnv(A_star, B_star, Sigma, x0, sys_config)
@@ -207,7 +212,7 @@ def run_paired_experiment(exp_config, seed, verbose=False):
 
                 if name != "oracle" and m < m_explore:
                     # Inject random Gaussian noise matching the state variance
-                    u = shared_exploration[m, k] * exp_config.sigma
+                    u = shared_exploration[m, k]
                 else:
                     u = agent.get_control(t, x)
 
@@ -251,6 +256,10 @@ def run_paired_experiment(exp_config, seed, verbose=False):
                 if buf is not None
                 else {}
             )
+
+            if name != "oracle" and m in checkpoint_set and agent.A_est is not None:
+                diag["A_est"] = agent.A_est.copy()
+                diag["B_est"] = agent.B_est.copy()
 
             result.episodes[name].append(EpisodeRecord(cost=cost, diagnostics=diag))
 

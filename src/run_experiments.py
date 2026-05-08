@@ -21,6 +21,7 @@ from analysis import (
     print_summary,
     plot_trajectories,
     plot_basin_entry_comparison,
+    plot_sparsity_evolution,
     basin_entry_ratio,
     seed_wins,
     quarter_horizon_regret,
@@ -53,12 +54,12 @@ BENCHMARKS = {
         sparsity=3,
         T=1.0,
         dt=0.025,
-        max_episodes=20,  # 120,
-        n_seeds=5,  # 50,
+        max_episodes=100,  # 120,
+        n_seeds=10,  # 50,
         sigma=0.1,
         # lambda_lasso=0.03,
-        c_lambda=0.1,
-        sigma_u=0.1,
+        c_lambda=0.02,
+        sigma_u=0.5 * 0.1,
     ),
     "d50": ExperimentConfig(
         x_dim=50,
@@ -92,11 +93,11 @@ BENCHMARKS = {
         T=1.0,
         dt=0.025,
         max_episodes=10,
-        n_seeds=2,
+        n_seeds=5,
         sigma=0.1,
         lambda_lasso=None,
-        c_lambda=0.1,
-        sigma_u=0.1,
+        c_lambda=0.01,
+        sigma_u=0.5 * 0.1,
     ),
 }
 
@@ -221,33 +222,36 @@ def run_and_report(name, exp_config, output_dir):
         print(f"  Seed wins ({sp} < dense): {w}/{len(results)}")
 
     # Non-endpoint robustness
-    print("\nNon-endpoint robustness:")
-    for sp in ["sparse_greedy", "sparse_excitation"]:
-        q1 = quarter_horizon_regret(results, sp)
-        q1_d = quarter_horizon_regret(results, "dense_greedy")
-        ea = episode_average_regret(results, sp)
-        ea_d = episode_average_regret(results, "dense_greedy")
-        q1_red = 1 - np.mean(q1) / max(np.mean(q1_d), 1e-15)
-        ea_red = 1 - np.mean(ea) / max(np.mean(ea_d), 1e-15)
-        print(f"  {sp}: Q1 reduction={q1_red:.1%}, episode-avg reduction={ea_red:.1%}")
+    # print("\nNon-endpoint robustness:")
+    # for sp in ["sparse_greedy", "sparse_excitation"]:
+    #     q1 = quarter_horizon_regret(results, sp)
+    #     q1_d = quarter_horizon_regret(results, "dense_greedy")
+    #     ea = episode_average_regret(results, sp)
+    #     ea_d = episode_average_regret(results, "dense_greedy")
+    #     q1_red = 1 - np.mean(q1) / max(np.mean(q1_d), 1e-15)
+    #     ea_red = 1 - np.mean(ea) / max(np.mean(ea_d), 1e-15)
+    #     print(f"  {sp}: Q1 reduction={q1_red:.1%}, episode-avg reduction={ea_red:.1%}")
 
-    # Basin entry
+    # # Basin entry
     ratios, median = basin_entry_ratio(results, threshold=0.15)
-    print(
-        f"\nBasin entry ratio (median): {median:.2f} "
-        f"(theory: {exp_config.theoretical_speedup:.2f})"
-    )
+    # print(
+    #     f"\nBasin entry ratio (median): {median:.2f} "
+    #     f"(theory: {exp_config.theoretical_speedup:.2f})"
+    # )
 
     # Save plots
-    bench_dir = os.path.join(output_dir, name, time.strftime("%Y%m%d_%H%M%S_"))
+    bench_dir = os.path.join(output_dir, name, time.strftime("%Y%m%d_%H%M%S"))
     os.makedirs(bench_dir, exist_ok=True)
 
-    plot_trajectories(results, exp_config, save_path=os.path.join(bench_dir, "trajectories.png"))
+    plot_trajectories(
+        results, exp_config, save_path=os.path.join(bench_dir, "trajectories.png")
+    )
     plot_basin_entry_comparison(
         results,
         exp_config,
         save_path=os.path.join(bench_dir, "basin_entry.png"),
     )
+    plot_sparsity_evolution(results, exp_config, output_dir=bench_dir)
 
     # Save numerical results
     save_dict = {

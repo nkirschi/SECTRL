@@ -12,7 +12,7 @@ from diagnostics import (
     episode_cost,
     collect_diagnostics,
 )
-from estimator import DiscreteDataBuffer
+from estimator import RegressionBuffer
 
 
 # ---------------------------------------------------------------------
@@ -21,12 +21,12 @@ from estimator import DiscreteDataBuffer
 
 
 def make_buffer(Z, Y):
-    """Build a DiscreteDataBuffer pre-populated with given Z, Y."""
+    """Build a RegressionBuffer pre-populated with given Z, Y."""
     N, dp = Z.shape
     d = Y.shape[1]
     p = dp - d
     # Use single 'episode' of length N to populate
-    buf = DiscreteDataBuffer(d, p, max_episodes=1, steps_per_episode=N)
+    buf = RegressionBuffer(d, p, max_episodes=1, steps_per_episode=N)
     buf.add_episode(Z, Y)
     return buf
 
@@ -533,9 +533,15 @@ class TestCollectDiagnostics:
             "error_joint",
             "error_A",
             "error_B",
-            "support_precision",
-            "support_recall",
-            "support_f1",
+            "support_precision_joint",
+            "support_recall_joint",
+            "support_f1_joint",
+            "support_precision_A",
+            "support_recall_A",
+            "support_f1_A",
+            "support_precision_B",
+            "support_recall_B",
+            "support_f1_B",
             "gram_min_eig",
             "regressor_energy",
             "spectral_abscissa_t0",

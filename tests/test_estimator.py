@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 
 from estimator import (
-    DiscreteDataBuffer,
+    RegressionBuffer,
     DiscreteRidgeEstimator,
     RowLassoEstimator,
 )
@@ -51,7 +51,7 @@ def synthetic_data(default_dims):
 def test_ridge_estimator_empty_buffer(default_dims):
     """Test that estimation fails safely on an empty buffer."""
     d, p = default_dims["x_dim"], default_dims["u_dim"]
-    buf = DiscreteDataBuffer(d, p, 1, 10)
+    buf = RegressionBuffer(d, p, 1, 10)
     est = DiscreteRidgeEstimator(d, p)
     
     with pytest.raises(RuntimeError, match="Buffer is empty"):
@@ -65,7 +65,7 @@ def test_ridge_estimator_perfect_recovery(default_dims, synthetic_data):
     H = default_dims["steps_per_episode"]
     zs, ys, Theta_true = synthetic_data
     
-    buf = DiscreteDataBuffer(d, p, max_episodes=2, steps_per_episode=H)
+    buf = RegressionBuffer(d, p, max_episodes=2, steps_per_episode=H)
     buf.add_episode(zs, ys)
     
     # Use an extremely small mu to approach OLS limit
@@ -113,7 +113,7 @@ def test_lasso_estimator_sparse_recovery(default_dims, synthetic_data):
     H = default_dims["steps_per_episode"]
     zs, ys, Theta_true = synthetic_data
     
-    buf = DiscreteDataBuffer(d, p, max_episodes=2, steps_per_episode=H)
+    buf = RegressionBuffer(d, p, max_episodes=2, steps_per_episode=H)
     buf.add_episode(zs, ys)
     
     # Use a fixed lambda large enough to zero out noise but keep strong signals
@@ -138,7 +138,7 @@ def test_lasso_warm_starting(default_dims, synthetic_data):
     H = default_dims["steps_per_episode"]
     zs, ys, _ = synthetic_data
     
-    buf = DiscreteDataBuffer(d, p, max_episodes=2, steps_per_episode=H)
+    buf = RegressionBuffer(d, p, max_episodes=2, steps_per_episode=H)
     buf.add_episode(zs, ys)
     
     est = RowLassoEstimator(d, p, lambda_fixed=0.01)

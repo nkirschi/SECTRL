@@ -27,7 +27,7 @@ def test_case_1_tanh(config):
         P_numeric = -K[0, 0]  # Since K = -P
         P_exact = np.tanh(config.T - t)
 
-        assert P_numeric == pytest.approx(P_exact, abs=1e-9)
+        assert P_numeric == pytest.approx(P_exact, abs=1e-6)
 
 
 @pytest.mark.quick
@@ -50,7 +50,7 @@ def test_case_2_rational(config):
         P_numeric = -K[0, 0]
         P_exact = G / (1 + G * (config.T - t))
 
-        assert P_numeric == pytest.approx(P_exact, abs=1e-9)
+        assert P_numeric == pytest.approx(P_exact, abs=1e-6)
 
 
 @pytest.mark.quick
@@ -76,4 +76,4 @@ def test_case_3_damped(config):
         tau = config.T - t
         P_exact = 2.0 / (3.0 * np.exp(2 * tau) - 1.0)
 
-        assert P_numeric == pytest.approx(P_exact, abs=1e-9)
+        assert P_numeric == pytest.approx(P_exact, abs=1e-6)

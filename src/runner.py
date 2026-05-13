@@ -173,7 +173,7 @@ def run_paired_experiment(exp_config, seed, verbose=False):
         np.round(np.linspace(0, M - 1, n_checkpoints)).astype(int).tolist()
     )
 
-    x0 = sigma * np.ones(d)  # TODO: is this the best x0 approach?
+    x0 = np.zeros(d)
 
     # Create agents
     agents = _create_agents(exp_config, sys_config, Q, R, A_star, B_star, seed)

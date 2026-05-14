@@ -22,6 +22,7 @@ from analysis import (
     plot_trajectories,
     plot_basin_entry_comparison,
     plot_sparsity_evolution,
+    plot_error_evolution,
     basin_entry_ratio,
     seed_wins,
     quarter_horizon_regret,
@@ -190,7 +191,7 @@ def run_and_report(name, exp_config, output_dir):
     print(f"  Theoretical speedup: {exp_config.theoretical_speedup:.2f}")
     print(
         f"  Theoretical lambda schedule: "
-        + ", ".join(f"{l:.3f}" for l in exp_config.theoretical_lambda_schedule)
+        + ", ".join(f"{l:.4f}" for l in exp_config.theoretical_lambda_schedule)
     )
     print(f"{'=' * 60}")
 
@@ -251,7 +252,10 @@ def run_and_report(name, exp_config, output_dir):
         exp_config,
         save_path=os.path.join(bench_dir, "basin_entry.png"),
     )
-    plot_sparsity_evolution(results, exp_config, output_dir=bench_dir)
+    param_dir = os.path.join(bench_dir, "params_evolution")
+    os.makedirs(param_dir, exist_ok=True)
+    plot_sparsity_evolution(results, exp_config, output_dir=param_dir)
+    plot_error_evolution(results, exp_config, output_dir=param_dir)
 
     # Save numerical results
     save_dict = {

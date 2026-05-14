@@ -190,7 +190,7 @@ def closed_loop_spectral_abscissa(A_true, B_true, dre_solver, B_est, t_values=No
     dict with keys 't=...' mapping to floats (spectral abscissa).
     """
     if dre_solver.solution is None:
-        return {"t=0": np.nan, "t=T": np.nan}
+        return {"t=0.00": np.nan, "t=T": np.nan}
 
     T = dre_solver.config.T
     dt = dre_solver.config.dt
@@ -298,7 +298,7 @@ def collect_diagnostics(
     # Spectral abscissa
     B_for_gain = agent.B_est
     spec = closed_loop_spectral_abscissa(A_true, B_true, agent.dre, B_for_gain)
-    d["spectral_abscissa_t0"] = spec.get("t=0", np.nan)
+    d["spectral_abscissa_t0"] = spec.get("t=0.00", np.nan)
     d["spectral_abscissa_tT"] = list(spec.values())[-1]
 
     return d

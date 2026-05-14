@@ -145,15 +145,16 @@ class TestSampleSparseSystem:
             )
 
     def test_coefficient_magnitudes_in_gap_range(self, d, p, s):
-        # All nonzero entries should have magnitude in [0.3, 1.0].
-        A, B, supports, _ = sample_sparse_system(d, p, s, seed=5)
-        Theta = np.hstack([A, B])
-        for i, supp in enumerate(supports):
-            for j in supp:
-                mag = abs(Theta[i, j])
-                assert 0.3 <= mag <= 1.0, (
-                    f"Row {i}, col {j}: magnitude {mag:.4f} outside [0.3, 1.0]"
-                )
+        # All nonzero entries should have magnitude in [a, b].
+        for a, b in [(0.3, 1.0), (0.5, 2.0), (1.0, 5.0)]:
+            A, B, supports, _ = sample_sparse_system(d, p, s, 0, coeff_magnitude=(a, b))
+            Theta = np.hstack([A, B])
+            for i, supp in enumerate(supports):
+                for j in supp:
+                    mag = abs(Theta[i, j])
+                    assert a <= mag <= b, (
+                        f"Row {i}, col {j}: magnitude {mag:.4f} outside [{a}, {b}]"
+                    )
 
     def test_no_all_zero_b_columns(self, d, p, s):
         A, B, _, _ = sample_sparse_system(d, p, s, seed=3)

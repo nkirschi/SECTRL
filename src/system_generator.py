@@ -59,6 +59,8 @@ def sample_sparse_system(
     -------
     A_star, B_star, supports, n_attempts
     """
+    assert coeff_magnitude[1] > coeff_magnitude[0] > 0, "Need 0 < a < b"
+
     rng = np.random.default_rng(seed)
 
     for attempt in range(1, max_attempts + 1):

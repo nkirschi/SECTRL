@@ -44,14 +44,25 @@ def aggregate_trajectory(results, agent_name, key):
     return np.array(trajs)
 
 
-def cumulative_regret_trajectories(results, agent_name, oracle_name="oracle"):
+def cumulative_regret_trajectories(
+    results, agent_name, oracle_name="oracle", adjusted=True
+):
     """
-    Cumulative regret trajectories across seeds.
+    Cumulative regret trajectories across seeds, shape (n_seeds, M).
 
-    Returns
-    -------
-    ndarray, shape (n_seeds, M)
+    Parameters
+    ----------
+    adjusted : bool
+        If True (default), use adjusted_cumulative_regret for the
+        sparse_excitation agent, which subtracts the deterministic
+        excitation tax sigma_u^2 * p * T per episode.  Has no effect
+        on other agents (their tax is identically zero).  Set to False
+        to retrieve the raw observed regret.
     """
+    if adjusted:
+        return np.array(
+            [r.adjusted_cumulative_regret(agent_name, oracle_name) for r in results]
+        )
     return np.array([r.cumulative_regret(agent_name, oracle_name) for r in results])
 
 
@@ -96,20 +107,29 @@ def mean_and_ci(arr, axis=0, confidence=0.95):
 # ─────────────────────────────────────────────────────────────────────
 
 
+def _final_regret(results, agent_name, oracle_name="oracle", adjusted=True):
+    """
+    Per-seed final cumulative regret, adjusted by default.
+
+    For sparse_excitation this removes the sigma_u^2 * p * T per-episode
+    exploration tax before computing the cumulative sum.
+    """
+    trajs = cumulative_regret_trajectories(
+        results, agent_name, oracle_name, adjusted=adjusted
+    )
+    return trajs[:, -1]
+
+
 def paired_t_test(results, agent_a, agent_b):
     """
-    Two-sided paired t-test on final cumulative regret.
+    Two-sided paired t-test on final adjusted cumulative regret.
 
     Returns
     -------
     dict with 't_stat', 'p_value', 'mean_diff'.
     """
-    vals_a = aggregate_metric(
-        results, agent_a, lambda r, a: r.final_cumulative_regret(a)
-    )
-    vals_b = aggregate_metric(
-        results, agent_b, lambda r, a: r.final_cumulative_regret(a)
-    )
+    vals_a = _final_regret(results, agent_a)
+    vals_b = _final_regret(results, agent_b)
     diffs = vals_a - vals_b
     t_stat, p_val = stats.ttest_rel(vals_a, vals_b)
     return {"t_stat": t_stat, "p_value": p_val, "mean_diff": np.mean(diffs)}
@@ -117,23 +137,14 @@ def paired_t_test(results, agent_a, agent_b):
 
 def wilcoxon_test(results, agent_a, agent_b, alternative="greater"):
     """
-    One-sided Wilcoxon signed-rank test.
+    One-sided Wilcoxon signed-rank test on final adjusted cumulative regret.
 
     Default alternative='greater' tests H_a: agent_a > agent_b.
-
-    Returns
-    -------
-    dict with 'statistic', 'p_value'.
     """
-    vals_a = aggregate_metric(
-        results, agent_a, lambda r, a: r.final_cumulative_regret(a)
-    )
-    vals_b = aggregate_metric(
-        results, agent_b, lambda r, a: r.final_cumulative_regret(a)
-    )
+    vals_a = _final_regret(results, agent_a)
+    vals_b = _final_regret(results, agent_b)
     diffs = vals_a - vals_b
 
-    # Wilcoxon requires nonzero differences
     nonzero = diffs[diffs != 0]
     if len(nonzero) < 2:
         return {"statistic": np.nan, "p_value": np.nan}
@@ -147,32 +158,22 @@ def wilcoxon_test(results, agent_a, agent_b, alternative="greater"):
 
 def sign_test(results, agent_a, agent_b):
     """
-    Exact two-sided sign test.
-
-    Returns
-    -------
-    dict with 'wins_a', 'wins_b', 'ties', 'n', 'p_value'.
+    Exact two-sided sign test on final adjusted cumulative regret.
     """
-    vals_a = aggregate_metric(
-        results, agent_a, lambda r, a: r.final_cumulative_regret(a)
-    )
-    vals_b = aggregate_metric(
-        results, agent_b, lambda r, a: r.final_cumulative_regret(a)
-    )
+    vals_a = _final_regret(results, agent_a)
+    vals_b = _final_regret(results, agent_b)
     diffs = vals_a - vals_b
 
-    wins_a = np.sum(diffs > 0)  # agent_a has higher regret
-    wins_b = np.sum(diffs < 0)  # agent_b has higher regret
+    wins_a = np.sum(diffs > 0)
+    wins_b = np.sum(diffs < 0)
     ties = np.sum(diffs == 0)
-    n = wins_a + wins_b  # exclude ties
+    n = wins_a + wins_b
 
     if n == 0:
         return {"wins_a": 0, "wins_b": 0, "ties": len(diffs), "n": 0, "p_value": 1.0}
 
-    # Two-sided: P(X >= max(wins_a, wins_b)) under Binomial(n, 0.5)
     k = max(wins_a, wins_b)
-    p_val = 2 * stats.binom.sf(k - 1, n, 0.5)
-    p_val = min(p_val, 1.0)
+    p_val = min(2 * stats.binom.sf(k - 1, n, 0.5), 1.0)
 
     return {
         "wins_a": int(wins_a),
@@ -211,39 +212,26 @@ def all_pairwise_tests(results, dense_name="dense_greedy", sparse_names=None):
 
 
 def quarter_horizon_regret(results, agent_name, oracle_name="oracle"):
-    """
-    Cumulative regret at the quarter-way point (episode M/4).
-
-    Returns ndarray of shape (n_seeds,).
-    """
-    trajs = cumulative_regret_trajectories(results, agent_name, oracle_name)
+    """Cumulative adjusted regret at episode M/4."""
+    trajs = cumulative_regret_trajectories(
+        results, agent_name, oracle_name, adjusted=True
+    )
     M = trajs.shape[1]
-    q = max(M // 4 - 1, 0)
-    return trajs[:, q]
+    return trajs[:, max(M // 4 - 1, 0)]
 
 
 def episode_average_regret(results, agent_name, oracle_name="oracle"):
-    """
-    Episode-averaged cumulative regret: (1/M) sum_{m=1}^{M} R(m).
-
-    Returns ndarray of shape (n_seeds,).
-    """
-    trajs = cumulative_regret_trajectories(results, agent_name, oracle_name)
+    """Episode-averaged adjusted cumulative regret."""
+    trajs = cumulative_regret_trajectories(
+        results, agent_name, oracle_name, adjusted=True
+    )
     return np.mean(trajs, axis=1)
 
 
 def seed_wins(results, agent_a, agent_b, oracle_name="oracle"):
-    """
-    Number of seeds where agent_b has lower final regret than agent_a.
-
-    Returns int.
-    """
-    vals_a = aggregate_metric(
-        results, agent_a, lambda r, a: r.final_cumulative_regret(a, oracle_name)
-    )
-    vals_b = aggregate_metric(
-        results, agent_b, lambda r, a: r.final_cumulative_regret(a, oracle_name)
-    )
+    """Number of seeds where agent_b has lower final adjusted regret than agent_a."""
+    vals_a = _final_regret(results, agent_a, oracle_name)
+    vals_b = _final_regret(results, agent_b, oracle_name)
     return int(np.sum(vals_b < vals_a))
 
 
@@ -308,7 +296,10 @@ def basin_entry_ratio(
 
 def final_summary_table(results, agent_names=None, oracle_name="oracle"):
     """
-    Print a summary table of final-episode statistics.
+    Summary table of final-episode statistics.
+
+    For sparse_excitation, reports both raw and adjusted final regret.
+    All statistical comparisons use adjusted regret.
 
     Returns
     -------
@@ -319,36 +310,35 @@ def final_summary_table(results, agent_names=None, oracle_name="oracle"):
 
     table = {}
     for name in agent_names:
-        final_reg = aggregate_metric(
-            results, name, lambda r, a: r.final_cumulative_regret(a, oracle_name)
-        )
+        # Adjusted final regret (== raw for non-excitation agents)
+        final_reg_adj = _final_regret(results, name, oracle_name, adjusted=True)
+        # Raw final regret (differs only for sparse_excitation)
+        final_reg_raw = _final_regret(results, name, oracle_name, adjusted=False)
 
-        # Final-episode diagnostics
         diag_keys = [
-            "error_joint",
-            "error_A",
-            "error_B",
-            "support_f1_joint",
-            "support_f1_A",
-            "support_f1_B",
+            "error_joint", "error_A", "error_B",
+            "support_f1_joint", "support_f1_A", "support_f1_B",
         ]
         diag_vals = {}
         for key in diag_keys:
             traj = aggregate_trajectory(results, name, key)
-            final_vals = traj[:, -1]  # last episode, shape (n_seeds,)
-            m = np.mean(final_vals)
+            final_vals = traj[:, -1]
             n = len(final_vals)
+            m = np.mean(final_vals)
             se = np.std(final_vals, ddof=1) / np.sqrt(n) if n > 1 else 0.0
             t_crit = stats.t.ppf(0.975, df=max(n - 1, 1))
             diag_vals[key] = (float(m), float(t_crit * se))
 
-        reg_m = np.mean(final_reg)
-        n = len(final_reg)
-        reg_se = np.std(final_reg, ddof=1) / np.sqrt(n) if n > 1 else 0.0
-        t_crit = stats.t.ppf(0.975, df=max(n - 1, 1))
+        def _stats(vals):
+            n = len(vals)
+            m = np.mean(vals)
+            se = np.std(vals, ddof=1) / np.sqrt(n) if n > 1 else 0.0
+            t_crit = stats.t.ppf(0.975, df=max(n - 1, 1))
+            return (float(m), float(t_crit * se))
 
         row = {
-            "final_regret": (float(reg_m), float(t_crit * reg_se)),
+            "final_regret": _stats(final_reg_adj),      # adjusted
+            "final_regret_raw": _stats(final_reg_raw),  # raw (same as adj for non-excitation)
             **diag_vals,
         }
         table[name] = row
@@ -359,22 +349,19 @@ def final_summary_table(results, agent_names=None, oracle_name="oracle"):
 def print_summary(table):
     """Pretty-print the summary table."""
     header = (
-        f"{'Agent':<22} {'Regret':>16} {'Err(joint)':>14} "
-        f"{'Err(A)':>14} {'Err(B)':>14} {'F1(joint)':>14} {'F1(A)':>14} {'F1(B)':>14}"
+        f"{'Agent':<22} {'Regret(adj)':>14} {'Regret(raw)':>14} "
+        f"{'Err(joint)':>12} {'Err(B)':>12} {'F1(joint)':>12}"
     )
     print(header)
     print("-" * len(header))
     for name, row in table.items():
-
         def fmt(key):
             m, ci = row[key]
             return f"{m:.2f}±{ci:.2f}"
-
         print(
-            f"{name:<22} {fmt('final_regret'):>16} "
-            f"{fmt('error_joint'):>14} {fmt('error_A'):>14} "
-            f"{fmt('error_B'):>14} {fmt('support_f1_joint'):>14}"
-            f"{fmt('support_f1_A'):>14} {fmt('support_f1_B'):>14}"
+            f"{name:<22} {fmt('final_regret'):>14} {fmt('final_regret_raw'):>14} "
+            f"{fmt('error_joint'):>12} {fmt('error_B'):>12} "
+            f"{fmt('support_f1_joint'):>12}"
         )
 
 
@@ -385,10 +372,15 @@ def print_summary(table):
 
 def plot_trajectories(results, exp_config, save_path=None):
     """
-    Plot 6-panel diagnostic figure (matching the paper's Figure 1).
+    6-panel diagnostic figure.
 
     Panels: cumulative regret, parameter error (log), restricted Gram
     min eigenvalue, support F1, spectral abscissa, episode cost.
+
+    Cumulative regret panel: for sparse_excitation, shows both the raw
+    observed regret (dashed) and the adjusted regret after subtracting
+    the deterministic excitation tax (solid).  All other panels and all
+    other agents are unaffected.
     """
     import matplotlib.pyplot as plt
 
@@ -403,7 +395,7 @@ def plot_trajectories(results, exp_config, save_path=None):
         "oracle": "Oracle",
         "dense_greedy": "Dense-Greedy",
         "sparse_greedy": "Sparse-Greedy",
-        "sparse_excitation": "Sparse-Excitation",
+        "sparse_excitation": "Sparse-Excitation (adj.)",
     }
 
     M = len(results[0].episodes["oracle"])
@@ -411,16 +403,11 @@ def plot_trajectories(results, exp_config, save_path=None):
 
     fig, axes = plt.subplots(2, 3, figsize=(15, 8))
     fig.suptitle(
-        f"$d = {exp_config.x_dim}$, "
-        f"$p = {exp_config.u_dim}$, "
-        f"$s = {exp_config.sparsity}$, "
-        f"$N = {exp_config.max_episodes}$, "
-        f"$T = {exp_config.T}$, "
-        f"$dt = {exp_config.dt}$, "
-        f"$\sigma = {exp_config.sigma}$, "
-        f"$\delta = {exp_config.delta}$, "
-        f"$c_\lambda = {exp_config.c_lambda}$",
-        fontsize=16,
+        f"$d={exp_config.x_dim}$, $p={exp_config.u_dim}$, $s={exp_config.sparsity}$, "
+        f"$M={exp_config.max_episodes}$, $T={exp_config.T}$, "
+        r"$\sigma=$" + f"{exp_config.sigma}, " +
+        r"$c_\lambda=$" + f"{exp_config.c_lambda}",
+        fontsize=13,
     )
 
     panel_configs = [
@@ -438,11 +425,13 @@ def plot_trajectories(results, exp_config, save_path=None):
                 continue
 
             if key == "cumulative_regret":
-                data = (
-                    cumulative_regret_trajectories(results, name, "oracle")
-                    if name != "oracle"
-                    else np.zeros((len(results), M))
-                )
+                if name == "oracle":
+                    data = np.zeros((len(results), M))
+                else:
+                    # Adjusted trajectory (solid line)
+                    data = cumulative_regret_trajectories(
+                        results, name, "oracle", adjusted=True
+                    )
             elif key == "episode_cost":
                 data = cost_trajectories(results, name)
             else:
@@ -452,16 +441,32 @@ def plot_trajectories(results, exp_config, save_path=None):
                 continue
 
             mean, ci_lo, ci_hi = mean_and_ci(data, axis=0)
-            ax.plot(episodes, mean, color=colors[name], label=labels[name])
+            ax.plot(
+                episodes, mean,
+                color=colors[name], label=labels[name], linewidth=1.8,
+            )
             ax.fill_between(episodes, ci_lo, ci_hi, color=colors[name], alpha=0.15)
 
-        ax.set_title(title)
-        ax.set_xlabel("Episode")
+            # For excitation agent on the regret panel, overlay the raw
+            # (unadjusted) regret as a dashed line so readers can see
+            # the size of the exploration tax.
+            if key == "cumulative_regret" and name == "sparse_excitation":
+                raw = cumulative_regret_trajectories(
+                    results, name, "oracle", adjusted=False
+                )
+                raw_mean, raw_lo, raw_hi = mean_and_ci(raw, axis=0)
+                ax.plot(
+                    episodes, raw_mean,
+                    color=colors[name], linestyle="--", linewidth=1.2,
+                    label="Sparse-Excitation (raw)", alpha=0.6,
+                )
+
+        ax.set_title(title, fontsize=10)
+        ax.set_xlabel("Episode", fontsize=9)
         if use_log:
             ax.set_yscale("log")
 
-    # Add legend to first panel
-    axes[0, 0].legend(fontsize=8)
+    axes[0, 0].legend(fontsize=7)
     plt.tight_layout()
 
     if save_path:

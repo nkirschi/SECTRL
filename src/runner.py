@@ -29,6 +29,7 @@ class EpisodeRecord:
     """Per-episode results for one agent."""
 
     cost: float = 0.0
+    excitation_tax: float = 0.0  # sigma_u^2 * tr(R) * T, used for adjusted regret
     diagnostics: dict = field(default_factory=dict)
 
 
@@ -53,6 +54,23 @@ class SeedResult:
         oracle_costs = np.array([ep.cost for ep in self.episodes[oracle_name]])
         agent_costs = np.array([ep.cost for ep in self.episodes[agent_name]])
         return np.cumsum(agent_costs - oracle_costs)
+
+    def adjusted_cumulative_regret(self, agent_name, oracle_name="oracle"):
+        """
+        Cumulative regret with the deterministic excitation tax removed.
+
+        For excitation agents, the observed cost includes sigma_u^2 * tr(R) * T
+        per episode regardless of learning quality.  Subtracting this
+        isolates the feedback suboptimality from the exploration overhead,
+        placing all agents on a comparable scale.
+
+        For non-excitation agents, excitation_tax == 0 so this equals
+        cumulative_regret.
+        """
+        oracle_costs = np.array([ep.cost for ep in self.episodes[oracle_name]])
+        agent_costs = np.array([ep.cost for ep in self.episodes[agent_name]])
+        excit_taxes = np.array([ep.excitation_tax for ep in self.episodes[agent_name]])
+        return np.cumsum(agent_costs - excit_taxes - oracle_costs)
 
     def final_cumulative_regret(self, agent_name, oracle_name="oracle"):
         return self.cumulative_regret(agent_name, oracle_name)[-1]
@@ -232,6 +250,11 @@ def run_paired_experiment(exp_config, seed, verbose=False):
 
             # Compute episode cost
             cost = episode_cost(states, controls, Q, R, dt)
+            excitation_tax = (
+                agent.sigma_u**2 * float(np.trace(R)) * exp_config.T
+                if isinstance(agent, SparseExcitationAgent)
+                else 0.0
+            )
 
             # Update agent estimate (not for oracle)
             if name != "oracle":
@@ -261,7 +284,11 @@ def run_paired_experiment(exp_config, seed, verbose=False):
                 diag["A_est"] = agent.A_est.copy()
                 diag["B_est"] = agent.B_est.copy()
 
-            result.episodes[name].append(EpisodeRecord(cost=cost, diagnostics=diag))
+            result.episodes[name].append(
+                EpisodeRecord(
+                    cost=cost, excitation_tax=excitation_tax, diagnostics=diag
+                )
+            )
 
     return result
 

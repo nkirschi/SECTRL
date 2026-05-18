@@ -394,7 +394,7 @@ def plot_trajectories(results, exp_config, save_path=None):
         ),
         # Row 1
         (
-            "Param. Error in $\mathbf{\Theta}$ (log)",
+            r"Param. Error in $\mathbf{\Theta}$ (log)",
             "error_joint",
             True,
             LEARNING_AGENTS,
@@ -463,7 +463,15 @@ def plot_trajectories(results, exp_config, save_path=None):
                     else:
                         data = raw_ep
             elif key == "episode_cost":
-                data = cost_trajectories(results, name)
+                raw_cost = cost_trajectories(results, name)
+                if name == "sparse_excitation":
+                    taxes = np.array([
+                        [ep.excitation_tax for ep in r.episodes[name]]
+                        for r in results
+                    ])
+                    data = raw_cost - taxes  # adjusted cost (solid)
+                else:
+                    data = raw_cost
             else:
                 data = aggregate_trajectory(results, name, key)
 
@@ -505,6 +513,18 @@ def plot_trajectories(results, exp_config, save_path=None):
             elif key == "per_ep_regret" and name == "sparse_excitation":
                 raw_ep = per_episode_regret_trajectories(results, name, "oracle")
                 raw_mean, _, _ = mean_and_ci(raw_ep, axis=0)
+                ax.plot(
+                    episodes,
+                    raw_mean,
+                    color=COLORS[name],
+                    linestyle="--",
+                    linewidth=1.0,
+                    label="Sparse-Excitation (raw)",
+                    alpha=0.55,
+                )
+            elif key == "episode_cost" and name == "sparse_excitation":
+                raw_cost = cost_trajectories(results, name)
+                raw_mean, _, _ = mean_and_ci(raw_cost, axis=0)
                 ax.plot(
                     episodes,
                     raw_mean,

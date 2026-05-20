@@ -1,0 +1,11 @@
+# Vary control dimension; s_B scales to stay within bounds
+base: d8
+name_prefix: reproduce
+vary:
+  - {a_scale: 1.0, b_scale: 1.0}
+  - {a_scale: 0.5, b_scale: 1.0}
+  - {a_scale: 1.0, b_scale: 0.5}
+  - {a_scale: 0.5, b_scale: 0.5}
+  - {a_scale: 2.0, b_scale: 1.0}
+  - {a_scale: 1.0, b_scale: 2.0}
+  - {a_scale: 2.0, b_scale: 2.0}

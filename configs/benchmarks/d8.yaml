@@ -6,8 +6,8 @@ system:
   u_dim: 3
   s_A: 2
   s_B: 1
-  a_scale: 0.55
-  b_scale: 0.55
+  a_scale: 1.0
+  b_scale: 1.0
   coeff_lower: 0.1
   max_instability: 1.0
 
@@ -19,11 +19,11 @@ simulation:
 
 cost:
   q_scale: 1.0
-  r_scale: 0.25
+  r_scale: 1.0
 
 training:
   max_episodes: 120
-  n_seeds: 2 # 12
+  n_seeds: 12
 
 agents:
   - oracle

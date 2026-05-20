@@ -264,17 +264,24 @@ def print_summary(table):
 def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
     import matplotlib.pyplot as plt
 
-    LEARNING_AGENTS = ["dense_greedy", "sparse_greedy", "sparse_excited"]
+    LEARNING_AGENTS = [
+        "dense_greedy",
+        "dense_excited",
+        "sparse_greedy",
+        "sparse_excited",
+    ]
     ALL_AGENTS = ["oracle"] + LEARNING_AGENTS
     COLORS = {
         "oracle": "green",
-        "dense_greedy": "orange",
-        "sparse_greedy": "blue",
+        "dense_greedy": "blue",
+        "dense_excited": "purple",
+        "sparse_greedy": "orange",
         "sparse_excited": "red",
     }
     LABELS = {
         "oracle": "Oracle",
         "dense_greedy": "Dense-Greedy",
+        "dense_excited": "Dense-Excitation",
         "sparse_greedy": "Sparse-Greedy",
         "sparse_excited": "Sparse-Excitation",
     }
@@ -370,11 +377,9 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
                                 for r in results
                             ]
                         )
-                        if name == "sparse_excited"
+                        if name in ("sparse_excited", "dense_excited")
                         else 0.0
                     )
-                    data = raw_ep - taxes
-            elif key == "episode_cost":
                 raw_cost = cost_trajectories(results, name)
                 taxes = (
                     np.array(
@@ -383,7 +388,7 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
                             for r in results
                         ]
                     )
-                    if name == "sparse_excited"
+                    if name in ("sparse_excited", "dense_excited")
                     else 0.0
                 )
                 data = raw_cost - taxes
@@ -414,7 +419,7 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
                 valid_episodes, ci_lo, ci_hi, color=COLORS[name], alpha=0.15
             )
 
-            if key == "cumul_regret" and name == "sparse_excited":
+            if key == "cumul_regret" and name in ("sparse_excited", "dense_excited"):
                 raw = cumulative_regret_trajectories(
                     results, name, "oracle", adjusted=False
                 )
@@ -425,7 +430,7 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
                     color=COLORS[name],
                     linestyle="--",
                     linewidth=1.0,
-                    label="Sparse-Excitation (raw)",
+                    label=f"{LABELS[name]} (raw)",
                     alpha=0.55,
                 )
 
@@ -515,9 +520,15 @@ def plot_sparsity_evolution(results, exp_config: ExperimentConfig, output_dir):
     except Exception:
         pass
 
-    LEARNING_AGENTS = ["dense_greedy", "sparse_greedy", "sparse_excited"]
+    LEARNING_AGENTS = [
+        "dense_greedy",
+        "dense_excited",
+        "sparse_greedy",
+        "sparse_excited",
+    ]
     AGENT_LABELS = {
         "dense_greedy": "Dense",
+        "dense_excited": "Dense-Ex",
         "sparse_greedy": "Sparse-Gr",
         "sparse_excited": "Sparse-Ex",
     }
@@ -622,9 +633,15 @@ def plot_error_evolution(results, exp_config: ExperimentConfig, output_dir):
     import matplotlib.pyplot as plt
     import os
 
-    LEARNING_AGENTS = ["dense_greedy", "sparse_greedy", "sparse_excited"]
+    LEARNING_AGENTS = [
+        "dense_greedy",
+        "dense_excited",
+        "sparse_greedy",
+        "sparse_excited",
+    ]
     AGENT_LABELS = {
         "dense_greedy": "Dense",
+        "dense_excited": "Dense-Ex",
         "sparse_greedy": "Sparse-Gr",
         "sparse_excited": "Sparse-Ex",
     }

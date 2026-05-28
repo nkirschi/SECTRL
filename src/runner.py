@@ -209,7 +209,8 @@ def run_paired_experiment(
                 if name != "oracle" and m < exp_config.m_explore:
                     u = shared_exploration[m, k]
                 else:
-                    u = agent.get_control(t, x, rngs[name])
+                    exploration_noise = rngs[name].standard_normal(p) / (m + 1)
+                    u = agent.get_control(t, x, exploration_noise)
                 u = np.clip(u, -exp_config.action_clip, exp_config.action_clip)
 
                 x_next = sys.step(x, u, noise=shared_noise[m, k])

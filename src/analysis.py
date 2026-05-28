@@ -125,8 +125,11 @@ def sign_test(results, agent_a, agent_b):
 def all_pairwise_tests(results, dense_name="dense_greedy", sparse_names=None):
     if sparse_names is None:
         sparse_names = ["sparse_greedy", "sparse_excited"]
+    available = set(results[0].agent_names) if results else set()
     output = {}
     for sp in sparse_names:
+        if dense_name not in available or sp not in available:
+            continue
         label = f"{dense_name}_vs_{sp}"
         output[label] = {
             "t_test": paired_t_test(results, dense_name, sp),
@@ -247,7 +250,7 @@ def print_summary(table):
 
         def fmt(key):
             m, ci = row[key]
-            return f"{m:.2f}±{ci:.2f}"
+            return f"{float(m):.2f}±{float(ci):.2f}"
 
         print(
             f"{name:<22} {fmt('final_regret'):>14} {fmt('final_regret_raw'):>14} "
@@ -267,126 +270,100 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
     ALL_AGENTS = list(exp_config.agents)
     LEARNING_AGENTS = [a for a in ALL_AGENTS if a != "oracle"]
     COLORS = {
-        "oracle": "green",
-        "dense_greedy": "blue",
+        "oracle":        "green",
+        "dense_greedy":  "blue",
         "dense_excited": "purple",
         "sparse_greedy": "orange",
-        "sparse_excited": "red",
+        "sparse_excited":"red",
     }
     LABELS = {
-        "oracle": "Oracle",
-        "dense_greedy": "Dense-Greedy",
+        "oracle":        "Oracle",
+        "dense_greedy":  "Dense-Greedy",
         "dense_excited": "Dense-Excitation",
         "sparse_greedy": "Sparse-Greedy",
-        "sparse_excited": "Sparse-Excitation",
+        "sparse_excited":"Sparse-Excitation",
     }
 
     M = exp_config.max_episodes
     episodes = np.arange(1, M + 1)
 
+    # (title, key, log_y, agent_list)
     PANELS = [
         # Row 0
-        (r"Cumulative Regret $R(M)$", "cumul_regret", False, ALL_AGENTS),
-        (r"Per-episode Regret $r_m$", "per_ep_regret", False, LEARNING_AGENTS),
-        (r"Episode Cost $J(\bm{\pi}_m)$", "episode_cost", False, ALL_AGENTS),
-        (
-            r"Gram Min Eigenvalue $\min_i \lambda_{\min}(\mathbf{Z}_{S_i}^\top \mathbf{Z}_{S_i}/N_m)$",
-            "gram_min_eig",
-            False,
-            LEARNING_AGENTS,
-        ),
+        (r"Cumulative Regret $R_m$",
+         "cumul_regret",        False, ALL_AGENTS),
+        (r"Cumulative Regret $R_m$ (log)",
+         "cumul_regret",        True,  ALL_AGENTS),
+        (r"Per-episode Regret $r_m$",
+         "per_ep_regret",       False, ALL_AGENTS),
+        (r"Episode Cost $J(\bm{\pi}_m)$",
+         "episode_cost",        False, ALL_AGENTS),
         # Row 1
-        (
-            r"Param. Error in $\mathbf{\Theta}$ (log)",
-            "error_joint",
-            True,
-            LEARNING_AGENTS,
-        ),
-        (r"Param. Error in $\mathbf{A}$ (log)", "error_A", True, LEARNING_AGENTS),
-        (r"Param. Error in $\mathbf{B}$ (log)", "error_B", True, LEARNING_AGENTS),
-        (
-            r"Spectral Abscissa $\max \mathrm{Re}(\lambda(\mathbf{A}_\star - \mathbf{B}_\star \mathbf{K}_m(0)))$",
-            "spectral_abscissa_t0",
-            False,
-            LEARNING_AGENTS,
-        ),
+        (r"Parameter Error in $\mathbf{\Theta}$ (log)",
+         "error_joint",         True,  LEARNING_AGENTS),
+        (r"Parameter Error in $\mathbf{A}$ (log)",
+         "error_A",             True,  LEARNING_AGENTS),
+        (r"Parameter Error in $\mathbf{B}$ (log)",
+         "error_B",             True,  LEARNING_AGENTS),
+        (r"Spectral Abscissa $\max \mathrm{Re}(\lambda(\mathbf{A}_\star + \mathbf{B}_\star \mathbf{K}_m(0)))$",
+         "spectral_abscissa_t0",False, LEARNING_AGENTS),
         # Row 2
-        (
-            r"Support F1 in $\mathbf{\Theta}$",
-            "support_f1_joint",
-            False,
-            LEARNING_AGENTS,
-        ),
-        (
-            r"Support F1 in $\mathbf{A}$",
-            "support_f1_A",
-            False,
-            LEARNING_AGENTS,
-        ),
-        (
-            r"Support F1 in $\mathbf{B}$",
-            "support_f1_B",
-            False,
-            LEARNING_AGENTS,
-        ),
-        None,
+        (r"Support F1 in $\mathbf{\Theta}$",
+         "support_f1_joint",    False, LEARNING_AGENTS),
+        (r"Support F1 in $\mathbf{A}$",
+         "support_f1_A",        False, LEARNING_AGENTS),
+        (r"Support F1 in $\mathbf{B}$",
+         "support_f1_B",        False, LEARNING_AGENTS),
+        (r"Gram Min Eigenvalue $\min_i \lambda_{\min}(\mathbf{Z}_{S_i}^\top \mathbf{Z}_{S_i}/N_m)$",
+         "gram_min_eig",        False, LEARNING_AGENTS),
     ]
 
     fig, axes = plt.subplots(3, 4, figsize=(20, 12), constrained_layout=True)
 
-    # Updated to use nested dataclass attributes
     fig.suptitle(
         f"$d={exp_config.system.d}$, $p={exp_config.system.p}$, "
         f"$s={exp_config.system.sparsity}$, $M={exp_config.max_episodes}$, "
-        f"$T={exp_config.system.T}$, "
-        r"$\sigma=$" + f"{exp_config.system.sigma}, "
-        r"$c_\lambda=$" + f"{exp_config.estimators.c_lambda}",
+        f"$T={exp_config.system.T}$, " +
+        r"$\mathrm{d}t$=" + f"{exp_config.system.dt}, " +
+        r"$\sigma_x=$" + f"{exp_config.system.sigma}, " +
+        r"$\sigma_u=$" + f"{exp_config.excitation.sigma_u}, " +
+        ((r"$c_\lambda=$" + f"{exp_config.estimators.c_lambda}, ") if exp_config.estimators.lambda_lasso is None else "") +
+        (f"$\lambda={exp_config.estimators.lambda_lasso}$, " if exp_config.estimators.lambda_lasso is not None else "") +
+        f"$\mu={exp_config.estimators.mu_ridge}$, " +
+        f"{exp_config.n_seeds} seeds",
         fontsize=11,
     )
 
     for ax, panel in zip(axes.flat, PANELS):
-        if panel is None:
-            ax.set_visible(False)
-            continue
-
         title, key, log_y, agents = panel
 
         for name in agents:
+            if name not in COLORS:
+                continue
+
+            # Data extraction
             if key == "cumul_regret":
-                data = (
-                    np.zeros((len(results), M))
-                    if name == "oracle"
-                    else cumulative_regret_trajectories(
-                        results, name, "oracle", adjusted=True
-                    )
+                data = cumulative_regret_trajectories(
+                    results, name, "oracle", adjusted=True
                 )
             elif key == "per_ep_regret":
                 if name == "oracle":
                     data = np.zeros((len(results), M))
                 else:
-                    raw_ep = per_episode_regret_trajectories(results, name, "oracle")
                     taxes = (
-                        np.array(
-                            [
-                                [ep.excitation_tax for ep in r.episodes[name]]
-                                for r in results
-                            ]
-                        )
+                        np.array([
+                            [ep.excitation_tax for ep in r.episodes[name]]
+                            for r in results
+                        ])
                         if name in ("sparse_excited", "dense_excited")
                         else 0.0
                     )
-                raw_cost = cost_trajectories(results, name)
-                taxes = (
-                    np.array(
-                        [
-                            [ep.excitation_tax for ep in r.episodes[name]]
-                            for r in results
-                        ]
+                    data = (
+                        per_episode_regret_trajectories(results, name, "oracle")
+                        - taxes
                     )
-                    if name in ("sparse_excited", "dense_excited")
-                    else 0.0
-                )
-                data = raw_cost - taxes
+            elif key == "episode_cost":
+                data = cost_trajectories(results, name)
             else:
                 data = aggregate_trajectory(results, name, key)
 
@@ -396,7 +373,6 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
             # Plotting lines only where we have valid (non-NaN) data
             valid_mask = ~np.isnan(data[0])
             valid_episodes = episodes[valid_mask]
-
             if len(valid_episodes) == 0:
                 continue
 
@@ -404,36 +380,31 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
             mean, ci_lo, ci_hi = mean_and_ci(valid_data, axis=0)
 
             ax.plot(
-                valid_episodes,
-                mean,
-                color=COLORS[name],
-                label=LABELS[name],
-                linewidth=1.6,
+                valid_episodes, mean,
+                color=COLORS[name], label=LABELS[name], linewidth=1.6,
             )
             ax.fill_between(
-                valid_episodes, ci_lo, ci_hi, color=COLORS[name], alpha=0.15
+                valid_episodes, ci_lo, ci_hi,
+                color=COLORS[name], alpha=0.15,
             )
 
+            # Dashed unadjusted line for excited agents on cumul_regret panels
             if key == "cumul_regret" and name in ("sparse_excited", "dense_excited"):
                 raw = cumulative_regret_trajectories(
                     results, name, "oracle", adjusted=False
                 )
                 raw_mean, _, _ = mean_and_ci(raw, axis=0)
                 ax.plot(
-                    episodes,
-                    raw_mean,
-                    color=COLORS[name],
-                    linestyle="--",
-                    linewidth=1.0,
-                    label=f"{LABELS[name]} (raw)",
-                    alpha=0.55,
+                    episodes, raw_mean,
+                    color=COLORS[name], linestyle="--", linewidth=1.0,
+                    label=f"{LABELS[name]} (raw)", alpha=0.55,
                 )
 
         ax.set_title(title, fontsize=9)
         ax.set_xlabel("Episode", fontsize=8)
         ax.tick_params(labelsize=7)
         if log_y:
-            ax.set_yscale("log")
+            ax.set_yscale("log", nonpositive="mask")
 
     axes[0, 0].legend(fontsize=7, loc="upper left")
 
@@ -508,25 +479,13 @@ def plot_sparsity_evolution(results, exp_config: ExperimentConfig, output_dir):
     import matplotlib.pyplot as plt
     import os
 
-    try:
-        import matplotlib
-
-        matplotlib.use("Agg")
-    except Exception:
-        pass
-
-    LEARNING_AGENTS = [
-        "dense_greedy",
-        "dense_excited",
-        "sparse_greedy",
-        "sparse_excited",
-    ]
     AGENT_LABELS = {
-        "dense_greedy": "Dense",
+        "dense_greedy":  "Dense",
         "dense_excited": "Dense-Ex",
         "sparse_greedy": "Sparse-Gr",
-        "sparse_excited": "Sparse-Ex",
+        "sparse_excited":"Sparse-Ex",
     }
+    LEARNING_AGENTS = [a for a in exp_config.agents if a in AGENT_LABELS]
 
     d, p, M = exp_config.system.d, exp_config.system.p, exp_config.max_episodes
 
@@ -610,7 +569,6 @@ def plot_sparsity_evolution(results, exp_config: ExperimentConfig, output_dir):
             cbar = fig.colorbar(sm, ax=axes[:, -1], shrink=0.6, pad=0.02, aspect=20)
             cbar.ax.tick_params(labelsize=7)
 
-            # Updated nested config property references
             fig.suptitle(
                 f"{block} block — seed {seed} — d={d}, p={p}, s={exp_config.system.sparsity}, M={M}",
                 fontsize=9,
@@ -628,18 +586,13 @@ def plot_error_evolution(results, exp_config: ExperimentConfig, output_dir):
     import matplotlib.pyplot as plt
     import os
 
-    LEARNING_AGENTS = [
-        "dense_greedy",
-        "dense_excited",
-        "sparse_greedy",
-        "sparse_excited",
-    ]
     AGENT_LABELS = {
-        "dense_greedy": "Dense",
+        "dense_greedy":  "Dense",
         "dense_excited": "Dense-Ex",
         "sparse_greedy": "Sparse-Gr",
-        "sparse_excited": "Sparse-Ex",
+        "sparse_excited":"Sparse-Ex",
     }
+    LEARNING_AGENTS = [a for a in exp_config.agents if a in AGENT_LABELS]
 
     d, p, M = exp_config.system.d, exp_config.system.p, exp_config.max_episodes
     n_checkpoints = min(8, M)
@@ -723,7 +676,6 @@ def plot_error_evolution(results, exp_config: ExperimentConfig, output_dir):
             cbar = fig.colorbar(sm, ax=axes[:, -1], shrink=0.6, pad=0.02, aspect=20)
             cbar.ax.tick_params(labelsize=7)
 
-            # Updated nested config property references
             fig.suptitle(
                 f"|{block}_hat - {block}*| — seed {seed} — d={d}, p={p}, s={exp_config.system.sparsity}, M={M}",
                 fontsize=9,

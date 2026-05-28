@@ -34,11 +34,11 @@ class LinearControlAgent:
         return self.theta_hat[:, self.state_dim :]
 
     def get_control(
-        self, t: float, x: NDArray[np.float64], rng: np.random.Generator
+        self, t: float, x: NDArray[np.float64], exploration_noise: NDArray[np.float64]
     ) -> NDArray[np.float64]:
         u = self.planner.get_K(t, self.B_hat) @ x
         if self.sigma_u > 0.0:
-            u += rng.standard_normal(self.control_dim) * self.sigma_u
+            u += exploration_noise * self.sigma_u
         return u.astype(np.float64)
 
     def update_model(

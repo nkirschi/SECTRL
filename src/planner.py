@@ -22,16 +22,26 @@ class RiccatiODESolver:
     def solve(self, A: NDArray[np.float64], B: NDArray[np.float64], terminal_cost: NDArray[np.float64] | None = None) -> bool:
         R_inv_B_T = cho_solve(self.R_cho, B.T)
         S = B @ R_inv_B_T
+        d = self.sys_cfg.d
+        I_d = np.eye(d)
 
         def riccati_ode(_, p_flat):
-            P = p_flat.reshape(self.sys_cfg.d, self.sys_cfg.d)
+            P = p_flat.reshape(d, d)
             dP_dtau = A.T @ P + P @ A - P @ S @ P + self.Q
             return dP_dtau.flatten()
+
+        # Analytical Jacobian of the Riccati RHS w.r.t. vec(P) (row-major)
+        J_linear = np.kron(A.T, I_d) + np.kron(I_d, A.T)
+
+        def riccati_jac(_, p_flat):
+            P = p_flat.reshape(d, d)
+            PS = P @ S
+            return J_linear - np.kron(I_d, PS) - np.kron(PS, I_d)
 
         if terminal_cost is not None:
             p_final = terminal_cost.flatten()
         else:
-            p_final = np.zeros(self.sys_cfg.d**2)
+            p_final = np.zeros(d ** 2)
 
         sol = solve_ivp(
             riccati_ode,
@@ -41,6 +51,7 @@ class RiccatiODESolver:
             method="Radau",
             rtol=1e-6,
             atol=1e-9,
+            jac=riccati_jac,
         )
 
         if sol.success:

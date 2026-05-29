@@ -271,35 +271,35 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
     M = exp_config.max_episodes
     episodes = np.arange(1, M + 1)
 
-    # (title, key, log_y, agent_list)
+    # (title, key, y_scale, agent_list)
     PANELS = [
         # Row 0
         (r"Cumulative Regret $R_m$",
-         "cumul_regret",        False, ALL_AGENTS),
-        (r"Cumulative Regret $R_m$ (log)",
-         "cumul_regret",        True,  ALL_AGENTS),
+         "cumul_regret",        'lin', ALL_AGENTS),
+        (r"Cumulative Regret $R_m$ (exp)",
+         "cumul_regret",        'exp',  ALL_AGENTS),
         (r"Per-episode Regret $r_m$",
-         "per_ep_regret",       False, ALL_AGENTS),
+         "per_ep_regret",       'lin', ALL_AGENTS),
         (r"Episode Cost $J(\bm{\pi}_m)$",
-         "episode_cost",        False, ALL_AGENTS),
+         "episode_cost",        'lin', ALL_AGENTS),
         # Row 1
         (r"Parameter Error in $\mathbf{\Theta}$ (log)",
-         "error_joint",         True,  LEARNING_AGENTS),
+         "error_joint",         'log',  LEARNING_AGENTS),
         (r"Parameter Error in $\mathbf{A}$ (log)",
-         "error_A",             True,  LEARNING_AGENTS),
+         "error_A",             'log',  LEARNING_AGENTS),
         (r"Parameter Error in $\mathbf{B}$ (log)",
-         "error_B",             True,  LEARNING_AGENTS),
+         "error_B",             'log',  LEARNING_AGENTS),
         (r"Spectral Abscissa $\max \mathrm{Re}(\lambda(\mathbf{A}_\star + \mathbf{B}_\star \mathbf{K}_m(0)))$",
-         "spectral_abscissa_t0",False, LEARNING_AGENTS),
+         "spectral_abscissa_t0",'lin', LEARNING_AGENTS),
         # Row 2
         (r"Support F1 in $\mathbf{\Theta}$",
-         "support_f1_joint",    False, LEARNING_AGENTS),
+         "support_f1_joint",    'lin', LEARNING_AGENTS),
         (r"Support F1 in $\mathbf{A}$",
-         "support_f1_A",        False, LEARNING_AGENTS),
+         "support_f1_A",        'lin', LEARNING_AGENTS),
         (r"Support F1 in $\mathbf{B}$",
-         "support_f1_B",        False, LEARNING_AGENTS),
+         "support_f1_B",        'lin', LEARNING_AGENTS),
         (r"Gram Min Eigenvalue $\min_i \lambda_{\min}(\mathbf{Z}_{S_i}^\top \mathbf{Z}_{S_i}/N_m)$",
-         "gram_min_eig",        False, LEARNING_AGENTS),
+         "gram_min_eig",        'lin', LEARNING_AGENTS),
     ]
 
     fig, axes = plt.subplots(3, 4, figsize=(20, 12), constrained_layout=True)
@@ -319,7 +319,7 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
     )
 
     for ax, panel in zip(axes.flat, PANELS):
-        title, key, log_y, agents = panel
+        title, key, y_scale, agents = panel
 
         for name in agents:
             if name not in COLORS:
@@ -330,7 +330,10 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
                 data = cumulative_regret_trajectories(results, name, "oracle")
             elif key == "per_ep_regret":
                 if name == "oracle":
-                    data = np.zeros((len(results), M))
+                    if y_scale == 'exp':
+                        data = np.ones((len(results), M))
+                    else:
+                        data = np.zeros((len(results), M))
                 else:
                     data = per_episode_regret_trajectories(results, name, "oracle")
             elif key == "episode_cost":
@@ -362,8 +365,10 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
         ax.set_title(title, fontsize=9)
         ax.set_xlabel("Episode", fontsize=8)
         ax.tick_params(labelsize=7)
-        if log_y:
+        if y_scale == 'log':
             ax.set_yscale("log", nonpositive="mask")
+        elif y_scale == 'exp':
+            ax.set_yscale('function', functions=(lambda x: np.exp(x), lambda x: np.log(np.clip(x, 1.0, None))))
 
     axes[0, 0].legend(fontsize=7, loc="upper left")
 

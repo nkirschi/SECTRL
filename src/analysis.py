@@ -254,18 +254,18 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
     ALL_AGENTS = list(exp_config.agents)
     LEARNING_AGENTS = [a for a in ALL_AGENTS if a != "oracle"]
     COLORS = {
-        "oracle":        "green",
-        "dense_greedy":  "blue",
+        "oracle": "green",
+        "dense_greedy": "blue",
         "dense_excited": "purple",
         "sparse_greedy": "red",
-        "sparse_excited":"orange",
+        "sparse_excited": "orange",
     }
     LABELS = {
-        "oracle":        "Oracle",
-        "dense_greedy":  "Dense-Greedy",
+        "oracle": "Oracle",
+        "dense_greedy": "Dense-Greedy",
         "dense_excited": "Dense-Excited",
         "sparse_greedy": "Sparse-Greedy",
-        "sparse_excited":"Sparse-Excited",
+        "sparse_excited": "Sparse-Excited",
     }
 
     M = exp_config.max_episodes
@@ -274,32 +274,40 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
     # (title, key, y_scale, agent_list)
     PANELS = [
         # Row 0
-        (r"Cumulative Regret $R_m$",
-         "cumul_regret",        'lin', ALL_AGENTS),
-        (r"Cumulative Regret $R_m$ (exp)",
-         "cumul_regret",        'exp',  ALL_AGENTS),
-        (r"Per-episode Regret $r_m$",
-         "per_ep_regret",       'lin', ALL_AGENTS),
-        (r"Episode Cost $J(\bm{\pi}_m)$",
-         "episode_cost",        'lin', ALL_AGENTS),
+        (r"Cumulative Regret $R_m$", "cumul_regret", "lin", ALL_AGENTS),
+        (r"Cumulative Regret $R_m$ (exp)", "cumul_regret", "exp", ALL_AGENTS),
+        (r"Per-episode Regret $r_m$", "per_ep_regret", "lin", ALL_AGENTS),
+        (r"Episode Cost $J(\bm{\pi}_m)$", "episode_cost", "lin", ALL_AGENTS),
         # Row 1
-        (r"Parameter Error in $\mathbf{\Theta}$ (log)",
-         "error_joint",         'log',  LEARNING_AGENTS),
-        (r"Parameter Error in $\mathbf{A}$ (log)",
-         "error_A",             'log',  LEARNING_AGENTS),
-        (r"Parameter Error in $\mathbf{B}$ (log)",
-         "error_B",             'log',  LEARNING_AGENTS),
-        (r"Spectral Abscissa $\max \mathrm{Re}(\lambda(\mathbf{A}_\star + \mathbf{B}_\star \mathbf{K}_m(0)))$",
-         "spectral_abscissa_t0",'lin', LEARNING_AGENTS),
+        (
+            r"Parameter Error in $\mathbf{\Theta}$ (log)",
+            "error_joint",
+            "log",
+            LEARNING_AGENTS,
+        ),
+        (r"Parameter Error in $\mathbf{A}$ (log)", "error_A", "log", LEARNING_AGENTS),
+        (r"Parameter Error in $\mathbf{B}$ (log)", "error_B", "log", LEARNING_AGENTS),
+        (
+            r"Spectral Abscissa $\max \mathrm{Re}(\lambda(\mathbf{A}_\star + \mathbf{B}_\star \mathbf{K}_m(0)))$",
+            "spectral_abscissa_t0",
+            "lin",
+            LEARNING_AGENTS,
+        ),
         # Row 2
-        (r"Support F1 in $\mathbf{\Theta}$",
-         "support_f1_joint",    'lin', LEARNING_AGENTS),
-        (r"Support F1 in $\mathbf{A}$",
-         "support_f1_A",        'lin', LEARNING_AGENTS),
-        (r"Support F1 in $\mathbf{B}$",
-         "support_f1_B",        'lin', LEARNING_AGENTS),
-        (r"Gram Min Eigenvalue $\min_i \lambda_{\min}(\mathbf{Z}_{S_i}^\top \mathbf{Z}_{S_i}/N_m)$",
-         "gram_min_eig",        'lin', LEARNING_AGENTS),
+        (
+            r"Support F1 in $\mathbf{\Theta}$",
+            "support_f1_joint",
+            "lin",
+            LEARNING_AGENTS,
+        ),
+        (r"Support F1 in $\mathbf{A}$", "support_f1_A", "lin", LEARNING_AGENTS),
+        (r"Support F1 in $\mathbf{B}$", "support_f1_B", "lin", LEARNING_AGENTS),
+        (
+            r"Gram Min Eigenvalue $\min_i \lambda_{\min}(\mathbf{Z}_{S_i}^\top \mathbf{Z}_{S_i}/N_m)$",
+            "gram_min_eig",
+            "lin",
+            LEARNING_AGENTS,
+        ),
     ]
 
     fig, axes = plt.subplots(3, 4, figsize=(20, 12), constrained_layout=True)
@@ -307,14 +315,25 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
     fig.suptitle(
         f"$d={exp_config.system.d}$, $p={exp_config.system.p}$, "
         f"$s={exp_config.system.sparsity}$, $M={exp_config.max_episodes}$, "
-        f"$T={exp_config.system.T}$, " +
-        r"$\mathrm{d}t$=" + f"{exp_config.system.dt}, " +
-        r"$\sigma_x=$" + f"{exp_config.system.sigma}, " +
-        r"$\sigma_u=$" + f"{exp_config.excitation.sigma_u}, " +
-        ((r"$c_\lambda=$" + f"{exp_config.estimators.c_lambda}, ") if exp_config.estimators.lambda_lasso is None else "") +
-        (f"$\lambda={exp_config.estimators.lambda_lasso}$, " if exp_config.estimators.lambda_lasso is not None else "") +
-        f"$\mu={exp_config.estimators.mu_ridge}$, " +
-        f"{exp_config.n_seeds} seeds",
+        f"$T={exp_config.system.T}$, "
+        + r"$\mathrm{d}t$="
+        + f"{exp_config.system.dt}, "
+        + r"$\sigma_x=$"
+        + f"{exp_config.system.sigma}, "
+        + r"$\sigma_u=$"
+        + f"{exp_config.excitation.sigma_u}, "
+        + (
+            (r"$c_\lambda=$" + f"{exp_config.estimators.c_lambda}, ")
+            if exp_config.estimators.lambda_lasso is None
+            else ""
+        )
+        + (
+            f"$\lambda={exp_config.estimators.lambda_lasso}$, "
+            if exp_config.estimators.lambda_lasso is not None
+            else ""
+        )
+        + f"$\mu={exp_config.estimators.mu_ridge}$, "
+        + f"{exp_config.n_seeds} seeds",
         fontsize=11,
     )
 
@@ -330,7 +349,7 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
                 data = cumulative_regret_trajectories(results, name, "oracle")
             elif key == "per_ep_regret":
                 if name == "oracle":
-                    if y_scale == 'exp':
+                    if y_scale == "exp":
                         data = np.ones((len(results), M))
                     else:
                         data = np.zeros((len(results), M))
@@ -354,21 +373,33 @@ def plot_trajectories(results, exp_config: ExperimentConfig, save_path=None):
             mean, ci_lo, ci_hi = mean_and_ci(valid_data, axis=0)
 
             ax.plot(
-                valid_episodes, mean,
-                color=COLORS[name], label=LABELS[name], linewidth=1.6,
+                valid_episodes,
+                mean,
+                color=COLORS[name],
+                label=LABELS[name],
+                linewidth=1.6,
             )
             ax.fill_between(
-                valid_episodes, ci_lo, ci_hi,
-                color=COLORS[name], alpha=0.15,
+                valid_episodes,
+                ci_lo,
+                ci_hi,
+                color=COLORS[name],
+                alpha=0.15,
             )
 
         ax.set_title(title, fontsize=9)
         ax.set_xlabel("Episode", fontsize=8)
         ax.tick_params(labelsize=7)
-        if y_scale == 'log':
+        if y_scale == "log":
             ax.set_yscale("log", nonpositive="mask")
-        elif y_scale == 'exp':
-            ax.set_yscale('function', functions=(lambda x: np.exp(x), lambda x: np.log(np.clip(x, 1.0, None))))
+        elif y_scale == "exp":
+            ax.set_yscale(
+                "function",
+                functions=(
+                    lambda x: np.exp(x),
+                    lambda x: np.log(np.clip(x, 1.0, None)),
+                ),
+            )
 
     axes[0, 0].legend(fontsize=7, loc="upper left")
 
@@ -388,9 +419,9 @@ def plot_basin_entry_comparison(results, exp_config: ExperimentConfig, save_path
         return
 
     # Threshold = max of mean final parameter error across learning agents.
-    # This makes the basin entry ask "when did each agent first reach the accuracy
+    # We ask "when did each agent first reach the accuracy
     # level that the worst agent achieves at the end of training?"
-    learning_agents = [a for a in exp_config.agents if a != "oracle" and a in available]
+    learning_agents = [a for a in exp_config.agents if "greedy" in a and a in available]
     final_errors = []
     for name in learning_agents:
         traj = aggregate_trajectory(results, name, "error_joint")
@@ -399,16 +430,23 @@ def plot_basin_entry_comparison(results, exp_config: ExperimentConfig, save_path
             final_errors.append(float(np.mean(valid_finals)))
     threshold = float(max(final_errors)) if final_errors else 0.3
 
-    ratios, median = basin_entry_ratio(results, dense_name, sparse_name, threshold=threshold)
+    ratios, median = basin_entry_ratio(
+        results, dense_name, sparse_name, threshold=threshold
+    )
     theoretical = exp_config.theoretical_speedup
 
     fig, ax = plt.subplots(figsize=(6, 4))
     valid = ratios[np.isfinite(ratios)]
     if len(valid) > 0:
         ax.hist(valid, bins=20, alpha=0.7, label="Empirical ratios")
-        ax.axvline(median, color="blue", linestyle="--", label=f"Median: {float(median):.2f}")
+        ax.axvline(
+            median, color="blue", linestyle="--", label=f"Median: {float(median):.2f}"
+        )
     ax.axvline(
-        theoretical, color="red", linestyle="-", label=f"Theory: {float(theoretical):.2f}"
+        theoretical,
+        color="red",
+        linestyle="-",
+        label=f"Theory: {float(theoretical):.2f}",
     )
     ax.set_xlabel(r"$m_0^{\mathrm{dense}} / m_0^{\mathrm{sparse}}$")
     ax.set_ylabel("Count")
@@ -469,10 +507,10 @@ def plot_parameter_evolution(results, exp_config: ExperimentConfig, output_dir):
     import os
 
     AGENT_LABELS = {
-        "dense_greedy":  "Dense",
+        "dense_greedy": "Dense",
         "dense_excited": "Dense-Ex",
         "sparse_greedy": "Sparse-Gr",
-        "sparse_excited":"Sparse-Ex",
+        "sparse_excited": "Sparse-Ex",
     }
     LEARNING_AGENTS = [a for a in exp_config.agents if a in AGENT_LABELS]
 
@@ -525,7 +563,8 @@ def plot_parameter_evolution(results, exp_config: ExperimentConfig, output_dir):
                 "True",
                 true_mat,
                 lambda est, t=true_mat: est,
-                "RdBu_r", -vmax,
+                "RdBu_r",
+                -vmax,
                 f"params_{block}_best_seed.png",
                 f"{block} block: estimated parameters",
             ),
@@ -533,17 +572,27 @@ def plot_parameter_evolution(results, exp_config: ExperimentConfig, output_dir):
                 f"|{block}*|",
                 np.abs(true_mat),
                 lambda est, t=true_mat: np.abs(est - t),
-                "Reds", 0.0,
+                "Reds",
+                0.0,
                 f"error_{block}_best_seed.png",
                 f"{block} block: |estimate \u2212 truth|",
             ),
         ]
 
-        for col0_label, col0_mat, est_mat_fn, cmap, vmin, filename, title_prefix in VIEWS:
+        for (
+            col0_label,
+            col0_mat,
+            est_mat_fn,
+            cmap,
+            vmin,
+            filename,
+            title_prefix,
+        ) in VIEWS:
             col_titles = [col0_label] + [f"Ep. {m + 1}" for m in checkpoint_episodes]
 
             fig, axes = plt.subplots(
-                n_rows, n_cols,
+                n_rows,
+                n_cols,
                 figsize=(fig_w, fig_h),
                 squeeze=False,
                 constrained_layout=True,
@@ -555,7 +604,9 @@ def plot_parameter_evolution(results, exp_config: ExperimentConfig, output_dir):
                     if col_idx == 0:
                         mat = col0_mat
                     else:
-                        ep = result.episodes[agent_name][checkpoint_episodes[col_idx - 1]]
+                        ep = result.episodes[agent_name][
+                            checkpoint_episodes[col_idx - 1]
+                        ]
                         est = ep.diagnostics.get(f"{block}_est", None)
                         if est is None:
                             ax.set_visible(False)
@@ -563,8 +614,12 @@ def plot_parameter_evolution(results, exp_config: ExperimentConfig, output_dir):
                         mat = est_mat_fn(est)
 
                     ax.imshow(
-                        mat, vmin=vmin, vmax=vmax, cmap=cmap,
-                        aspect="auto", interpolation="nearest",
+                        mat,
+                        vmin=vmin,
+                        vmax=vmax,
+                        cmap=cmap,
+                        aspect="auto",
+                        interpolation="nearest",
                     )
                     _draw_support_overlay(ax, mask)
                     ax.set_xticks([])
@@ -575,11 +630,15 @@ def plot_parameter_evolution(results, exp_config: ExperimentConfig, output_dir):
                         ax.set_title(col_titles[col_idx], fontsize=8, pad=3)
                     if col_idx == 0:
                         ax.set_ylabel(
-                            AGENT_LABELS[agent_name], fontsize=8,
-                            rotation=90, labelpad=4,
+                            AGENT_LABELS[agent_name],
+                            fontsize=8,
+                            rotation=90,
+                            labelpad=4,
                         )
 
-            sm = plt.cm.ScalarMappable(cmap=cmap, norm=plt.Normalize(vmin=vmin, vmax=vmax))
+            sm = plt.cm.ScalarMappable(
+                cmap=cmap, norm=plt.Normalize(vmin=vmin, vmax=vmax)
+            )
             sm.set_array([])
             cbar = fig.colorbar(sm, ax=axes[:, -1], shrink=0.6, pad=0.02, aspect=20)
             cbar.ax.tick_params(labelsize=7)
@@ -609,22 +668,22 @@ def plot_self_exploration_diagnostics(
     import os
 
     COLORS = {
-        "dense_greedy":  "blue",
+        "dense_greedy": "blue",
         "dense_excited": "purple",
         "sparse_greedy": "red",
-        "sparse_excited":"orange",
+        "sparse_excited": "orange",
     }
     LABELS = {
-        "dense_greedy":  "Dense-Greedy",
+        "dense_greedy": "Dense-Greedy",
         "dense_excited": "Dense-Excitation",
         "sparse_greedy": "Sparse-Greedy",
-        "sparse_excited":"Sparse-Excitation",
+        "sparse_excited": "Sparse-Excitation",
     }
     MARKERS = {
-        "dense_greedy":  "o",
+        "dense_greedy": "o",
         "dense_excited": "s",
         "sparse_greedy": "^",
-        "sparse_excited":"D",
+        "sparse_excited": "D",
     }
 
     learning_agents = [a for a in exp_config.agents if a != "oracle" and a in COLORS]
@@ -647,10 +706,16 @@ def plot_self_exploration_diagnostics(
             zorder=3,
         )
     ax.axvline(
-        0, color="black", linestyle="--", linewidth=0.9, alpha=0.6,
+        0,
+        color="black",
+        linestyle="--",
+        linewidth=0.9,
+        alpha=0.6,
         label=r"$\lambda_{\min} = 0$",
     )
-    ax.set_xlabel(r"$\lambda_{\min}(\mathbf{B}_\star^\top \mathbf{Q} \, \mathbf{B}_\star)$")
+    ax.set_xlabel(
+        r"$\lambda_{\min}(\mathbf{B}_\star^\top \mathbf{Q} \, \mathbf{B}_\star)$"
+    )
     ax.set_ylabel("Final cumulative regret")
     ax.set_title("Self-exploration condition vs regret")
     ax.legend(fontsize=8, framealpha=0.7)
@@ -667,10 +732,16 @@ def plot_self_exploration_diagnostics(
         alpha=0.85,
     )
     ax.axvline(
-        0, color="black", linestyle="--", linewidth=0.9, alpha=0.6,
+        0,
+        color="black",
+        linestyle="--",
+        linewidth=0.9,
+        alpha=0.6,
         label=r"$\lambda_{\min} = 0$",
     )
-    ax.set_xlabel(r"$\lambda_{\min}(\mathbf{B}_\star^\top \mathbf{Q} \, \mathbf{B}_\star)$")
+    ax.set_xlabel(
+        r"$\lambda_{\min}(\mathbf{B}_\star^\top \mathbf{Q} \, \mathbf{B}_\star)$"
+    )
     ax.set_ylabel("Count")
     ax.set_title(r"Distribution of $\lambda_{\min}$ across seeds")
     ax.legend(fontsize=8, framealpha=0.7)

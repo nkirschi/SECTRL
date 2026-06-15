@@ -31,7 +31,12 @@ import io
 from contextlib import redirect_stdout
 import yaml
 from common import ExperimentConfig
-from runner import run_paired_experiment
+from runner import (
+    run_paired_experiment,
+    persist_raw_results,
+    load_raw_results,
+    find_result_dirs,
+)
 from analysis import (
     all_pairwise_tests,
     final_summary_table,
@@ -165,29 +170,19 @@ def _run_parallel(
 # Reporting
 
 
-def report(
-    name: str,
-    exp_config: ExperimentConfig,
+def _build_summary_text(
     results: list,
-    output_dir: str,
+    exp_config: ExperimentConfig,
     elapsed: float | None = None,
-    verbose: bool = True,
-) -> None:
-    """
-    Pure reporting: analysis, JSON serialisation, plots, and summary text.
-    Does not run any simulation. Summary is always saved to summary.txt;
-    it is also printed to the console when verbose=True.
-    """
+) -> str:
+    """Construct the human-readable summary string."""
     import numpy as np
 
     table = final_summary_table(results, agent_names=exp_config.agents)
     tests = all_pairwise_tests(results)
-    _, median = basin_entry_ratio(results, threshold=exp_config.support_threshold)
-
     min_eigs = [float(r.btqb_min_eig) for r in results]
     max_eigs = [float(r.btqb_max_eig) for r in results]
 
-    # Capture summary into a buffer so it can be saved to file and printed.
     buf = io.StringIO()
     with redirect_stdout(buf):
         if elapsed is not None:
@@ -219,21 +214,24 @@ def report(
             f"median={float(np.median(max_eigs)):.4f}  "
             f"max={max(max_eigs):.4f}"
         )
+    return buf.getvalue()
 
-    summary_text = buf.getvalue()
 
-    if verbose:
-        print(summary_text, end="")
+def _build_save_dict(
+    results: list,
+    exp_config: ExperimentConfig,
+    elapsed: float | None = None,
+) -> dict:
+    """Construct the JSON-serialisable summary dictionary."""
+    import numpy as np
 
-    bench_dir = os.path.join(output_dir, name, time.strftime("%Y%m%d_%H%M%S"))
-    os.makedirs(bench_dir, exist_ok=True)
+    table = final_summary_table(results, agent_names=exp_config.agents)
+    tests = all_pairwise_tests(results)
+    _, median = basin_entry_ratio(results, threshold=exp_config.support_threshold)
+    min_eigs = [float(r.btqb_min_eig) for r in results]
+    max_eigs = [float(r.btqb_max_eig) for r in results]
 
-    # Save summary text — always, regardless of verbose, so every result
-    # folder is self-documenting even for quiet sweep reports.
-    with open(os.path.join(bench_dir, "summary.txt"), "w") as f:
-        f.write(summary_text)
-
-    # Serialise config for reproducibility
+    # Flatten ExperimentConfig (top-level and nested sub-dataclasses) to dicts.
     config_dict = {
         f.name: getattr(exp_config, f.name) for f in dataclasses.fields(exp_config)
     }
@@ -243,7 +241,7 @@ def report(
         if is_dataclass(v):
             config_dict[k] = {f.name: getattr(v, f.name) for f in dataclasses.fields(v)}
 
-    save_dict = {
+    return {
         "config": config_dict,
         "summary": {
             n: {k: list(v) for k, v in row.items()} for n, row in table.items()
@@ -279,25 +277,90 @@ def report(
         "basin_entry_median": float(median) if np.isfinite(median) else None,
         "elapsed_seconds": elapsed,
     }
-    with open(os.path.join(bench_dir, "results.json"), "w") as f:
+
+
+def _save_summary(
+    results: list,
+    exp_config: ExperimentConfig,
+    output_dir: str,
+    elapsed: float | None = None,
+    verbose: bool = True,
+) -> None:
+    """Write summary.txt (human-readable) and results.json (machine-readable)."""
+    summary_text = _build_summary_text(results, exp_config, elapsed)
+    if verbose:
+        print(summary_text, end="")
+    with open(os.path.join(output_dir, "summary.txt"), "w") as f:
+        f.write(summary_text)
+    save_dict = _build_save_dict(results, exp_config, elapsed)
+    with open(os.path.join(output_dir, "results.json"), "w") as f:
         json.dump(save_dict, f, indent=2)
 
+
+def _generate_plots(
+    results: list,
+    exp_config: ExperimentConfig,
+    output_dir: str,
+) -> None:
+    """Render and save all PNGs into output_dir."""
     plot_trajectories(
-        results, exp_config, save_path=os.path.join(bench_dir, "trajectories.png")
+        results, exp_config, save_path=os.path.join(output_dir, "trajectories.png")
     )
     plot_basin_entry_comparison(
-        results, exp_config, save_path=os.path.join(bench_dir, "basin_entry.png")
+        results, exp_config, save_path=os.path.join(output_dir, "basin_entry.png")
     )
     plot_self_exploration_diagnostics(
         results,
         exp_config,
-        save_path=os.path.join(bench_dir, "self_exploration.png"),
+        save_path=os.path.join(output_dir, "self_exploration.png"),
     )
-    param_dir = os.path.join(bench_dir, "params_evolution")
+    param_dir = os.path.join(output_dir, "params_evolution")
     os.makedirs(param_dir, exist_ok=True)
     plot_parameter_evolution(results, exp_config, output_dir=param_dir)
 
+
+def report(
+    name: str,
+    exp_config: ExperimentConfig,
+    results: list,
+    output_dir: str,
+    elapsed: float | None = None,
+    verbose: bool = True,
+) -> None:
+    """
+    Persist raw results, write summary text/JSON, and render plots.
+
+    After this returns, the result directory contains everything needed
+    to regenerate every output via `replot()`.
+    """
+    bench_dir = os.path.join(output_dir, name, time.strftime("%Y%m%d_%H%M%S"))
+    os.makedirs(bench_dir, exist_ok=True)
+    persist_raw_results(results, exp_config, bench_dir)
+    _save_summary(results, exp_config, bench_dir, elapsed=elapsed, verbose=verbose)
+    _generate_plots(results, exp_config, bench_dir)
     print(f"Results saved to {bench_dir}/")
+
+
+def replot(path: str) -> None:
+    """
+    Regenerate plots and summary files from previously persisted results.
+
+    `path` may be a single result directory (containing seed_results.pkl)
+    or a parent directory (e.g. results/sweeps/) whose subtree is walked
+    for all such directories. summary.txt, results.json, and the PNGs are
+    overwritten in place; seed_results.pkl is left untouched.
+    """
+    result_dirs = find_result_dirs(path)
+    if not result_dirs:
+        raise FileNotFoundError(
+            f"No directories containing seed_results.pkl found under {path}"
+        )
+    for d in result_dirs:
+        print(f"\nReplotting {d}")
+        results, exp_config = load_raw_results(d)
+        _save_summary(results, exp_config, d, elapsed=None, verbose=True)
+        _generate_plots(results, exp_config, d)
+    print(f"\nReplotted {len(result_dirs)} result director{'y' if len(result_dirs) == 1 else 'ies'}.")
 
 
 # Entry point
@@ -323,6 +386,16 @@ def main():
         "--debug", action="store_true", help="Run only the debugging run."
     )
     parser.add_argument(
+        "--replot",
+        type=str,
+        default=None,
+        help=(
+            "Path to a result directory or a parent containing several. "
+            "Regenerates plots and summary in place from seed_results.pkl; "
+            "does not re-run any simulation."
+        ),
+    )
+    parser.add_argument(
         "--n-workers",
         type=int,
         default=1,
@@ -340,7 +413,10 @@ def main():
     for d in [bench_dir, sweep_dir]:
         os.makedirs(d, exist_ok=True)
 
-    if args.debug:
+    if args.replot:
+        replot(args.replot)
+
+    elif args.debug:
         cfg = load_benchmark("debug")
         _print_config("debug", cfg)
         t0 = time.time()

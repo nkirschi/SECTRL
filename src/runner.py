@@ -5,6 +5,8 @@ Each seed defines one system and one noise stream shared across all agents.
 
 from __future__ import annotations
 
+import os
+import pickle
 import numpy as np
 from dataclasses import dataclass, field
 from typing import Dict, List
@@ -270,3 +272,77 @@ def run_paired_experiment(
             result.episodes[name].append(EpisodeRecord(cost=cost, diagnostics=diag))
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Persistence of raw results
+# ---------------------------------------------------------------------------
+
+SEED_RESULTS_VERSION = 1
+"""
+Bump when the SeedResult / EpisodeRecord / ExperimentConfig schema changes
+in a backward-incompatible way. The version field is checked on load.
+"""
+
+_SEED_RESULTS_FILENAME = "seed_results.pkl"
+
+
+def persist_raw_results(
+    results: List[SeedResult],
+    exp_config: ExperimentConfig,
+    output_dir: str,
+) -> None:
+    """
+    Pickle the per-seed results and source config so that plots and summary
+    files can be regenerated later without re-running the experiment.
+
+    Layout written:
+        <output_dir>/seed_results.pkl  -- {version, results, config}
+    """
+    payload = {
+        "version": SEED_RESULTS_VERSION,
+        "results": results,
+        "config": exp_config,
+    }
+    path = os.path.join(output_dir, _SEED_RESULTS_FILENAME)
+    with open(path, "wb") as f:
+        pickle.dump(payload, f)
+
+
+def load_raw_results(
+    output_dir: str,
+) -> tuple[List[SeedResult], ExperimentConfig]:
+    """
+    Inverse of `persist_raw_results`. Raises FileNotFoundError if the pickle
+    is missing and ValueError on a version mismatch.
+    """
+    path = os.path.join(output_dir, _SEED_RESULTS_FILENAME)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"No seed_results.pkl in {output_dir}")
+    with open(path, "rb") as f:
+        payload = pickle.load(f)
+    version = payload.get("version", 0)
+    if version != SEED_RESULTS_VERSION:
+        raise ValueError(
+            f"seed_results.pkl in {output_dir} has version {version}; "
+            f"current loader version is {SEED_RESULTS_VERSION}. "
+            f"The schema has changed since this file was written."
+        )
+    return payload["results"], payload["config"]
+
+
+def find_result_dirs(path: str) -> list[str]:
+    """
+    Return all directories at or under `path` that contain a seed_results.pkl.
+
+    If `path` is itself a result directory, returns [path]. Otherwise walks
+    recursively. Used by --replot to handle both single result directories
+    and sweep parent directories transparently.
+    """
+    if os.path.isfile(os.path.join(path, _SEED_RESULTS_FILENAME)):
+        return [path]
+    found: list[str] = []
+    for root, _dirs, files in os.walk(path):
+        if _SEED_RESULTS_FILENAME in files:
+            found.append(root)
+    return sorted(found)

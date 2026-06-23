@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
+import warnings
 from sklearn.linear_model._cd_fast import enet_coordinate_descent_gram
+from sklearn.exceptions import ConvergenceWarning
 from common import EstimatorConfig, SystemConfig
 
 
@@ -106,13 +108,17 @@ class RowLassoEstimator:
         sys_cfg: SystemConfig,
         est_cfg: EstimatorConfig,
         lamda_schedule: callable = None,
+        use_warmup: bool = True,
     ):
         self.x_dim = sys_cfg.d
         self.z_dim = sys_cfg.d + sys_cfg.p
         self.lamda_fixed = est_cfg.lambda_lasso
         self.lamda_schedule = lamda_schedule
+        self.lamda_warmup = est_cfg.lambda_warmup
+        self.use_warmup = use_warmup
         self.max_iter = est_cfg.lasso_max_iter
         self.tol = est_cfg.lasso_tol
+        self._fitted_once = False
         # Incremental accumulators (unnormalised sums over all rows seen).
         self._gram = np.zeros((self.z_dim, self.z_dim), dtype=np.float64)  # Z^T Z
         self._rhs = np.zeros((self.x_dim, self.z_dim), dtype=np.float64)   # (Z^T Y)^T
@@ -134,23 +140,35 @@ class RowLassoEstimator:
             self._yy += np.einsum("ij,ij->j", y_new, y_new)
             self._n_seen = n_total
 
-        lamda = (
-            self.lamda_schedule(self._n_seen)
-            if self.lamda_fixed is None
-            else self.lamda_fixed
+        is_warmup = (
+            self.use_warmup and self.lamda_fixed is None and not self._fitted_once
         )
+        if self.lamda_fixed is not None:
+            lamda = self.lamda_fixed
+        elif is_warmup:
+            lamda = self.lamda_warmup
+        else:
+            lamda = self.lamda_schedule(self._n_seen)
+        self._fitted_once = True
+
         # The Cython gram solver minimises (1/2) w^T G w - q^T w + alpha ||w||_1,
         # so the L1 weight is the sample count times the (normalised) lambda.
         alpha = self._n_seen * lamda
-        for i in range(self.x_dim):
-            # y enters the solver only through ||y||^2 (the dual-gap tolerance),
-            # so a length-1 vector with the right norm suffices.
-            y_norm = np.array([np.sqrt(self._yy[i])], dtype=np.float64)
-            w, _, _, _ = enet_coordinate_descent_gram(
-                self._coef[i], alpha, 0.0, self._gram,
-                np.ascontiguousarray(self._rhs[i]), y_norm,
-                self.max_iter, self.tol, self._rng, 0, 0,
-            )
-            self._coef[i] = w
+        with warnings.catch_warnings():
+            if is_warmup:
+                # The tiny warmup penalty is near-OLS on a degenerate early
+                # design; CD is not expected to fully converge, and a rough
+                # nonzero estimate is all we need to break the trap.
+                warnings.simplefilter("ignore", ConvergenceWarning)
+            for i in range(self.x_dim):
+                # y enters the solver only through ||y||^2 (the dual-gap
+                # tolerance), so a length-1 vector with the right norm suffices.
+                y_norm = np.array([np.sqrt(self._yy[i])], dtype=np.float64)
+                w, _, _, _ = enet_coordinate_descent_gram(
+                    self._coef[i], alpha, 0.0, self._gram,
+                    np.ascontiguousarray(self._rhs[i]), y_norm,
+                    self.max_iter, self.tol, self._rng, 0, 0,
+                )
+                self._coef[i] = w
 
         return self._coef.copy()

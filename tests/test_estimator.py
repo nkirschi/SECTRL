@@ -115,9 +115,13 @@ def test_lasso_streaming_matches_full_fit(default_dims, configs):
     from-scratch sklearn Lasso fit on the full buffer would give -- this both
     pins correctness and guards the private Cython gram API across upgrades.
     """
+    from dataclasses import replace
     from sklearn.linear_model import Lasso
 
     sys_cfg, est_cfg = configs
+    # Match the warmup to the schedule so every fit uses the same lambda: this
+    # test pins the streaming math, not the warmup behaviour.
+    est_cfg = replace(est_cfg, lambda_warmup=0.02)
     d, p = default_dims["d"], default_dims["p"]
     H = default_dims["steps_per_episode"]
     z_dim = d + p
@@ -146,3 +150,36 @@ def test_lasso_streaming_matches_full_fit(default_dims, configs):
             theta_ref[i] = m.coef_
 
         np.testing.assert_allclose(theta_stream, theta_ref, atol=1e-7)
+
+
+@pytest.mark.quick
+def test_lasso_warmup_first_fit_only(default_dims, configs):
+    """
+    The first scheduled fit uses the small warmup penalty (so a weak initial
+    signal is not shrunk to zero -- breaking the trap), and the theoretical
+    schedule applies from the second fit on.
+    """
+    from dataclasses import replace
+
+    sys_cfg, est_cfg = configs
+    est_cfg = replace(est_cfg, lambda_warmup=1e-6)
+    d, p = default_dims["d"], default_dims["p"]
+    H = default_dims["steps_per_episode"]
+
+    rng = np.random.default_rng(1)
+    Theta_true = np.zeros((d, d + p))
+    Theta_true[0, 0] = 0.5
+    zs = rng.normal(0, 1, size=(H, d + p))
+    ys = zs @ Theta_true.T + 0.01 * rng.normal(0, 1, size=(H, d))
+
+    # A schedule so large it would zero every coefficient if ever applied.
+    est = RowLassoEstimator(sys_cfg, est_cfg, lamda_schedule=lambda n: 100.0)
+
+    buf = RegressionBuffer(d, p, max_episodes=3, steps_per_episode=H)
+    buf.add_episode(zs, ys)
+    first = est.fit(buf.Z, buf.Y)
+    assert np.any(first != 0.0)  # warmup -> nonzero estimate
+
+    buf.add_episode(zs, ys)
+    second = est.fit(buf.Z, buf.Y)
+    assert np.all(second == 0.0)  # schedule (lambda=100) -> shrunk to zero

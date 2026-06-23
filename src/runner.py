@@ -85,6 +85,9 @@ def _build_agent(
             None,
             planner,
         )
+
+    planner.solve(A_0, B_0)
+
     if name == "dense_greedy":
         est = DiscreteRidgeEstimator(exp_config.estimators)
         return LinearControlAgent(name, prior_theta.copy(), d, p, Q, R, est, planner)
@@ -101,14 +104,19 @@ def _build_agent(
             planner,
             sigma_u=exp_config.excitation.sigma_u,
         )
+    # The Lasso warmup is only needed to break the trap when there is no
+    # pure-exploration phase.
+    use_warmup = exp_config.m_explore == 0
     if name == "sparse_greedy":
         est = RowLassoEstimator(
-            exp_config.system, exp_config.estimators, exp_config.theoretical_lambda
+            exp_config.system, exp_config.estimators,
+            exp_config.theoretical_lambda, use_warmup=use_warmup,
         )
         return LinearControlAgent(name, prior_theta.copy(), d, p, Q, R, est, planner)
     if name == "sparse_excited":
         est = RowLassoEstimator(
-            exp_config.system, exp_config.estimators, exp_config.theoretical_lambda
+            exp_config.system, exp_config.estimators,
+            exp_config.theoretical_lambda, use_warmup=use_warmup,
         )
         return LinearControlAgent(
             name,
@@ -228,10 +236,10 @@ def run_paired_experiment(
                 u = np.clip(u, -exp_config.action_clip, exp_config.action_clip)
 
                 x_next = sys.step(x, u, noise=shared_noise[m, k])
-                x_next = np.clip(x_next, -exp_config.state_clip, exp_config.state_clip)
 
                 states[k], controls[k] = x, u
                 zs[k], ys[k] = np.concatenate([x, u]), (x_next - x) / sys.dt
+                x_next = np.clip(x_next, -exp_config.state_clip, exp_config.state_clip)
                 x = x_next
 
             cost = episode_cost(states, controls, Q, R, sys.dt)

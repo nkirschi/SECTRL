@@ -238,7 +238,9 @@ def _build_save_dict(
 
     table = final_summary_table(results, agent_names=exp_config.agents)
     tests = all_pairwise_tests(results)
-    _, median = basin_entry_ratio(results, threshold=exp_config.support_threshold)
+    _, median, basin_stats = basin_entry_ratio(
+        results, threshold=exp_config.support_threshold
+    )
     min_eigs = [float(r.btqb_min_eig) for r in results]
     max_eigs = [float(r.btqb_max_eig) for r in results]
 
@@ -285,7 +287,13 @@ def _build_save_dict(
                 "per_seed": [float(x) for x in max_eigs],
             },
         },
-        "basin_entry_median": float(median) if np.isfinite(median) else None,
+        "basin_entry": {
+            "median_speedup": float(median) if np.isfinite(median) else None,
+            "dense_never_entered": basin_stats["dense_never_entered"],
+            "sparse_never_entered": basin_stats["sparse_never_entered"],
+            "both_never_entered": basin_stats["both_never_entered"],
+            "n_seeds": basin_stats["n_seeds"],
+        },
         "elapsed_seconds": elapsed,
     }
 

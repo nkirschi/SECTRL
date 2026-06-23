@@ -175,14 +175,31 @@ def basin_entry_analysis(
 def basin_entry_ratio(
     results, dense_name="dense_greedy", sparse_name="sparse_greedy", threshold=0.15
 ):
-    dense_entries = basin_entry_analysis(results, dense_name, (threshold,))[threshold]
-    sparse_entries = basin_entry_analysis(results, sparse_name, (threshold,))[threshold]
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        ratios = dense_entries / sparse_entries
-    valid = np.isfinite(ratios)
-    median = np.nanmedian(ratios) if np.any(valid) else np.nan
-    return ratios, median
+    dense_m0 = basin_entry_analysis(results, dense_name, (threshold,))[threshold]
+    sparse_m0 = basin_entry_analysis(results, sparse_name, (threshold,))[threshold]
+
+    M = len(results[0].diagnostic_trajectory(dense_name, "error_joint")) if results else 0
+    dense_censored = np.isnan(dense_m0)
+    sparse_censored = np.isnan(sparse_m0)
+
+    # Episodes-to-enter, 1-indexed; a non-entry is censored at M+1 (a lower bound:
+    # M episodes were not enough, so the true entry time is at least M+1).
+    dense_time = np.where(dense_censored, M + 1, dense_m0 + 1)
+    sparse_time = np.where(sparse_censored, M + 1, sparse_m0 + 1)
+
+    ratios = dense_time / sparse_time
+    both_censored = dense_censored & sparse_censored
+    ratios[both_censored] = np.nan  # neither entered -> uninformative
+
+    median = float(np.nanmedian(ratios)) if np.any(~both_censored) else np.nan
+    n = len(ratios)
+    stats = {
+        "n_seeds": int(n),
+        "dense_never_entered": float(np.mean(dense_censored)) if n else float("nan"),
+        "sparse_never_entered": float(np.mean(sparse_censored)) if n else float("nan"),
+        "both_never_entered": int(np.sum(both_censored)),
+    }
+    return ratios, median, stats
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -430,7 +447,7 @@ def plot_basin_entry_comparison(results, exp_config: ExperimentConfig, save_path
             final_errors.append(float(np.mean(valid_finals)))
     threshold = float(max(final_errors)) if final_errors else 0.3
 
-    ratios, median = basin_entry_ratio(
+    ratios, median, stats = basin_entry_ratio(
         results, dense_name, sparse_name, threshold=threshold
     )
     theoretical = exp_config.theoretical_speedup
@@ -450,7 +467,13 @@ def plot_basin_entry_comparison(results, exp_config: ExperimentConfig, save_path
     )
     ax.set_xlabel(r"$m_0^{\mathrm{dense}} / m_0^{\mathrm{sparse}}$")
     ax.set_ylabel("Count")
-    ax.set_title(f"Basin Entry Speedup (threshold $\\epsilon={threshold:.3f}$)")
+    # Surface the censoring: a high dense-never-entered rate means the median is
+    # a conservative lower bound (those seeds are capped at M+1, not dropped).
+    ax.set_title(
+        f"Basin Entry Speedup ($\\epsilon={threshold:.3f}$)\n"
+        f"never entered -- dense: {stats['dense_never_entered']:.0%}, "
+        f"sparse: {stats['sparse_never_entered']:.0%}"
+    )
     ax.legend()
     plt.tight_layout()
 

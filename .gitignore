@@ -11,3 +11,5 @@ wheels/
 
 results/
 slurm/
+notebooks/*.png
+notebooks/*.pdf

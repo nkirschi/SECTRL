@@ -742,6 +742,52 @@ def fig_anchor(res, cfg, outdir, fname="anchor.pdf", suptitle=None):
     plt.close(fig)
 
 
+# ------------------------------------------------ IEEE-39 topology recovery heatmaps
+def fig_ieee39_topology(res, cfg, outdir, fname="ieee39_topology.pdf"):
+    """Emits <base>_{a,b,c}.pdf for a LaTeX subfigure row -- log-magnitude heatmaps of
+    Theta = [A|B]: (a) the truth, (b/c) the greedy agents' estimates right after the
+    exploration episode (checkpoint m=0), when each 87-unknown row regression has seen
+    only H=50 samples. The LASSO already shows the grid's wiring; underdetermined least
+    squares is full-amplitude noise. Colour scale shared; colorbar on panel (c) only.
+    Requires load_point(..., with_snapshots=True). Median seed by sparse final regret.
+    No in-figure panel titles."""
+    from matplotlib.colors import LogNorm
+
+    base = fname[:-4] if fname.endswith(".pdf") else fname
+    fins = [r.cumulative_regret("sparse_greedy")[-1] for r in res]
+    r = res[int(np.argsort(fins)[len(fins) // 2])]
+
+    def theta_at(agent, m):
+        ep = r.episodes[agent][m]
+        return np.hstack([ep.diagnostics["A_est"], ep.diagnostics["B_est"]])
+
+    T_star = np.abs(np.hstack([r.A_star, r.B_star]))
+    panels = [
+        ("a", T_star, False),
+        ("b", np.abs(theta_at("sparse_greedy", 0)), False),
+        ("c", np.abs(theta_at("dense_greedy", 0)), True),
+    ]
+    vmin = 5e-3
+    vmax = max(T_star.max(), panels[2][1].max())
+    d = T_star.shape[0]
+
+    for tag, mat, cbar in panels:
+        fig, ax = plt.subplots(figsize=(4.9, 4.0) if cbar else (4.0, 4.0),
+                               constrained_layout=True)
+        masked = np.ma.masked_less(mat, vmin)
+        im = ax.imshow(masked, norm=LogNorm(vmin=vmin, vmax=vmax), cmap="Greys",
+                       aspect="auto", interpolation="nearest")
+        ax.axvline(d - 0.5, color=OK["vermillion"], lw=0.9)
+        ax.set_xlabel(r"column (state $\mid$ input)")
+        ax.tick_params(labelsize=8)
+        if tag == "a":
+            ax.set_ylabel("row")
+        if cbar:
+            fig.colorbar(im, ax=ax, shrink=0.9, pad=0.02, label=r"$|$entry$|$")
+        _save(fig, os.path.join(outdir, f"{base}_{tag}.pdf"))
+        plt.close(fig)
+
+
 # --------------------------------------- single-point diagnostics (2x2, e.g. d=500)
 def fig_singlepoint_diagnostics(res, cfg, outdir, fname="singlepoint.pdf"):
     # Emits <base>_{a,b,c,d}.pdf for a 2x2 LaTeX subfigure block: (a) cumulative regret,
@@ -1070,7 +1116,9 @@ def fig_ieee39_illustration(outdir):
     A, B, supports, _ = sample_ieee39(seed=0)
 
     # (a) grid graph
-    fig, ax1 = plt.subplots(figsize=(6, 5.5))
+    # 6 x 4.38 so that, at the LaTeX widths (a: 0.55, b: 0.43 linewidth), the rendered
+    # height matches the sparsity panel's 4.5 x 4.2: 0.55*(4.38/6) = 0.43*(4.2/4.5).
+    fig, ax1 = plt.subplots(figsize=(6, 4.38))
     for f, t, _ in IEEE39_BRANCHES:
         (x0, y0), (x1, y1) = POS[f], POS[t]
         ax1.plot([x0, x1], [y0, y1], color="#999999", lw=0.8, zorder=1)
@@ -1129,7 +1177,8 @@ def fig_ieee39_illustration(outdir):
         columnspacing=1.0,
     )
     ax1.axis("off")
-    ax1.set_aspect("equal")
+    # aspect left "auto": the hand-placed layout is schematic, not geographic, so it may
+    # stretch to fill the flatter canvas that height-matches the sparsity panel.
     ax1.grid(False)
     fig.tight_layout()
     _save(fig, os.path.join(outdir, "ieee39_a.pdf"))

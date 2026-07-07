@@ -2,8 +2,8 @@
 
 Model-based RL for episodic continuous-time linear-quadratic control where the
 dynamics `Θ⋆ = [A⋆ | B⋆]` are row-sparse. 
-The proposed algorithm, **SAMBL** (*Sparsity-Aware Model-Based Learning*), replaces the least-squares dynamics estimator of a certainty-equivalent agent with a row-wise LASSO that exploits the sparsity.
-The experiments show that SAMBL attains lower regret than the dense OLS baseline as the dimension grows, on synthetic systems and on two structured benchmarks (a spring-mass chain and the IEEE 39-bus power grid).
+Our proposed algorithm, **SAMBL** (*Sparsity-Aware Model-Based Learning*), equips a certainty-equivalent agent with a row-wise LASSO dynamics estimator that exploits the sparsity.
+The experiments show that SAMBL is more sample efficient; in particular, it attains lower regret than the dense OLS baseline as the dimension grows, on synthetic systems and on two structured benchmarks (a spring-mass chain and the IEEE 39-bus power grid).
 
 The project uses [`uv`](https://docs.astral.sh/uv/). 
 Every command below is prefixed with `uv run` so it executes inside the locked environment.
